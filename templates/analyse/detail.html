@@ -1,0 +1,595 @@
+{% extends 'base.html' %}
+{% block title %}Analyse – {{ result.resume.indicateur }}{% endblock %}
+{% block page_title %}Analyse : {{ result.resume.indicateur }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.badge-critique { background:rgba(255,70,70,.15);color:#ff4646;padding:2px 8px;border-radius:20px;font-size:10px;font-family:var(--font-mono) }
+.badge-haute    { background:rgba(255,180,0,.15);color:var(--warning);padding:2px 8px;border-radius:20px;font-size:10px;font-family:var(--font-mono) }
+.badge-normale  { background:rgba(0,220,130,.12);color:var(--success);padding:2px 8px;border-radius:20px;font-size:10px;font-family:var(--font-mono) }
+.panel-section  { background:var(--bg-secondary);border-radius:8px;padding:14px 18px;margin-bottom:12px }
+.kpi-mini       { text-align:center;padding:10px }
+.kpi-mini .val  { font-family:var(--font-display);font-size:22px;font-weight:700 }
+.kpi-mini .lbl  { font-size:10px;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if result.erreur is defined %}
+<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> {{ result.erreur }}</div>
+{% else %}
+
+<!-- ══ TÂCHE 1 : Résumé nettoyage des données ══════════════════════════════ -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <h3><i class="fas fa-broom" style="color:var(--cyan)"></i> Tâche 1 — Données Nettoyées</h3>
+    <span style="font-family:var(--font-mono);font-size:11px;color:{% if result.resume.pret %}var(--success){% else %}var(--danger){% endif %}">
+      {% if result.resume.pret %}✅ Prêt pour analyse{% else %}❌ Données insuffisantes{% endif %}
+    </span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0;border-top:1px solid var(--border)">
+    <div class="kpi-mini">
+      <div class="val" style="color:var(--text-primary)">{{ result.resume.nb_brut }}</div>
+      <div class="lbl">Brutes</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:var(--success)">{{ result.resume.nb_nettoye }}</div>
+      <div class="lbl">Nettoyées</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:{% if result.resume.nb_doublons > 0 %}var(--warning){% else %}var(--muted){% endif %}">{{ result.resume.nb_doublons }}</div>
+      <div class="lbl">Doublons</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:{% if result.resume.nb_outliers > 0 %}var(--danger){% else %}var(--muted){% endif %}">{{ result.resume.nb_outliers }}</div>
+      <div class="lbl">Exclus IQR×5</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:var(--text-secondary);font-size:13px">{{ result.resume.debut }}</div>
+      <div class="lbl">Début</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:var(--text-secondary);font-size:13px">{{ result.resume.fin }}</div>
+      <div class="lbl">Fin</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Paramètres d'analyse ═══════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-body" style="padding:12px 20px">
+    <form method="POST" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">PARAMÈTRES :</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:12px;color:var(--text-secondary)">Méthode</label>
+        <select name="methode" class="form-control" style="width:160px;padding:5px 10px;font-size:12px">
+          <option value="zscore"           {% if methode=='zscore' %}selected{% endif %}>Z-Score Robuste</option>
+          <option value="isolation_forest" {% if methode=='isolation_forest' %}selected{% endif %}>Isolation Forest</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:12px;color:var(--text-secondary)">Fenêtre</label>
+        <input type="number" name="window" value="{{ window }}" min="3" max="50"
+               class="form-control" style="width:70px;padding:5px 8px;font-size:12px">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:12px;color:var(--text-secondary)">Seuil σ</label>
+        <input type="number" name="threshold" value="{{ threshold }}" min="1" max="6" step="0.5"
+               class="form-control" style="width:70px;padding:5px 8px;font-size:12px">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="fas fa-sync"></i> Relancer
+      </button>
+      <a href="{{ url_for('analyse.api_analyse', id_ind=id_ind, methode=methode, window=window, threshold=threshold) }}"
+         target="_blank" class="btn btn-secondary btn-sm">
+        <i class="fas fa-code"></i> JSON
+      </a>
+    </form>
+  </div>
+</div>
+
+<!-- ══ TÂCHE 2 : Statistiques (KPIs) ══════════════════════════════════════ -->
+{% set st = result.indicateurs %}
+{% if st %}
+<div class="stats-grid" style="margin-bottom:16px">
+  <div class="stat-card">
+    <div class="stat-icon si-blue"><i class="fas fa-chart-bar"></i></div>
+    <div><div class="stat-label">Moyenne</div><div class="stat-value">{{ st.mean }} <span style="font-size:12px;color:var(--muted)">{{ result.resume.unite }}</span></div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon si-purple"><i class="fas fa-wave-square"></i></div>
+    <div><div class="stat-label">Médiane</div><div class="stat-value">{{ st.median }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon si-cyan"><i class="fas fa-ruler-horizontal"></i></div>
+    <div><div class="stat-label">Écart-type</div><div class="stat-value">{{ st.std }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon si-green"><i class="fas fa-arrow-down"></i></div>
+    <div><div class="stat-label">Min</div><div class="stat-value">{{ st.min }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon si-red"><i class="fas fa-arrow-up"></i></div>
+    <div><div class="stat-label">Max</div><div class="stat-value">{{ st.max }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon si-yellow"><i class="fas fa-percent"></i></div>
+    <div><div class="stat-label">Coeff. Variation</div><div class="stat-value">{{ st.cv }}%</div></div>
+  </div>
+</div>
+
+<!-- Seuils dynamiques -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header"><h3><i class="fas fa-sliders-h" style="color:var(--warning)"></i> Tâche 2 — Seuils Dynamiques (fenêtre={{ window }})</h3></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border-top:1px solid var(--border)">
+    <div class="kpi-mini">
+      <div class="val" style="color:var(--danger)">{{ st.seuil_haut }}</div>
+      <div class="lbl">Seuil Haut (±3σ)</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:var(--success)">{{ st.seuil_bas }}</div>
+      <div class="lbl">Seuil Bas (±3σ)</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:var(--danger)">{{ st.seuil_haut_rob }}</div>
+      <div class="lbl">Seuil Haut Robuste</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:var(--success)">{{ st.seuil_bas_rob }}</div>
+      <div class="lbl">Seuil Bas Robuste</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ══ TÂCHE 5 : Visualisation principale — Série + Anomalies ══════════════ -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <h3><i class="fas fa-chart-line" style="color:var(--primary)"></i>
+      Tâche 5 — Série Temporelle + Anomalies Détectées
+    </h3>
+    <span style="font-family:var(--font-mono);font-size:11px;color:var(--danger)">
+      {{ result.anomaly_indices|length }} anomalie(s) — {{ methode|upper }}
+    </span>
+  </div>
+  <div style="padding:16px 20px">
+    <canvas id="chartSerie" height="90"></canvas>
+  </div>
+</div>
+
+<!-- ══ TÂCHE 5 : Graphique Moyenne Mobile + Seuils ════════════════════════ -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+  <div class="card">
+    <div class="card-header"><h3><i class="fas fa-bezier-curve" style="color:var(--cyan)"></i> Moyenne Mobile (fenêtre={{ window }})</h3></div>
+    <div style="padding:12px 16px"><canvas id="chartMoyenne" height="160"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3><i class="fas fa-sort-amount-up" style="color:var(--warning)"></i> Z-Scores</h3></div>
+    <div style="padding:12px 16px"><canvas id="chartZScore" height="160"></canvas></div>
+  </div>
+</div>
+
+<!-- ══ TÂCHE 3 : Comparaison des méthodes + Métriques de performance ════════ -->
+{% set comp = result.comparaison.comparaison %}
+{% set mz = result.comparaison.zscore.metriques %}
+{% set mif = result.comparaison.isolation_forest.metriques %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header"><h3><i class="fas fa-balance-scale" style="color:var(--success)"></i> Tâche 3 — Comparaison Z-Score vs Isolation Forest + Métriques</h3></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border-top:1px solid var(--border)">
+    <div class="kpi-mini">
+      <div class="val" style="color:var(--primary)">{{ result.comparaison.zscore.indices|length }}</div>
+      <div class="lbl">Anomalies Z-Score</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:var(--success)">{{ result.comparaison.isolation_forest.indices|length }}</div>
+      <div class="lbl">Anomalies IF</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:var(--cyan)">{{ comp.accord_pct }}%</div>
+      <div class="lbl">Accord entre méthodes</div>
+    </div>
+    <div class="kpi-mini" style="border-left:1px solid var(--border)">
+      <div class="val" style="color:var(--warning);font-size:14px">{{ comp.recommandation }}</div>
+      <div class="lbl">Méthode Recommandée</div>
+    </div>
+  </div>
+
+  <!-- Métriques F1 / Précision / Recall -->
+  {% if mz %}
+  <div style="padding:14px 20px;border-top:1px solid var(--border)">
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
+      📊 Métriques de performance (ground truth = seuil 4σ conservatif)
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- Z-Score -->
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:12px 16px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--primary)">Z-Score Robuste</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+          <div>
+            <div style="font-size:20px;font-weight:700;color:{% if mz.precision >= 0.8 %}var(--success){% elif mz.precision >= 0.5 %}var(--warning){% else %}var(--danger){% endif %}">{{ (mz.precision * 100)|round(1) }}%</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">PRÉCISION</div>
+          </div>
+          <div>
+            <div style="font-size:20px;font-weight:700;color:{% if mz.recall >= 0.8 %}var(--success){% elif mz.recall >= 0.5 %}var(--warning){% else %}var(--danger){% endif %}">{{ (mz.recall * 100)|round(1) }}%</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">RECALL</div>
+          </div>
+          <div>
+            <div style="font-size:20px;font-weight:700;color:{% if mz.f1_score >= 0.8 %}var(--success){% elif mz.f1_score >= 0.5 %}var(--warning){% else %}var(--danger){% endif %}">{{ (mz.f1_score * 100)|round(1) }}%</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">F1-SCORE</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">
+          TP={{ mz.tp }} FP={{ mz.fp }} FN={{ mz.fn }} | Détectées={{ mz.detected_count }} / Ground truth={{ mz.ground_truth_count }}
+        </div>
+      </div>
+      <!-- Isolation Forest -->
+      {% if mif %}
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:12px 16px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--success)">Isolation Forest</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+          <div>
+            <div style="font-size:20px;font-weight:700;color:{% if mif.precision >= 0.8 %}var(--success){% elif mif.precision >= 0.5 %}var(--warning){% else %}var(--danger){% endif %}">{{ (mif.precision * 100)|round(1) }}%</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">PRÉCISION</div>
+          </div>
+          <div>
+            <div style="font-size:20px;font-weight:700;color:{% if mif.recall >= 0.8 %}var(--success){% elif mif.recall >= 0.5 %}var(--warning){% else %}var(--danger){% endif %}">{{ (mif.recall * 100)|round(1) }}%</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">RECALL</div>
+          </div>
+          <div>
+            <div style="font-size:20px;font-weight:700;color:{% if mif.f1_score >= 0.8 %}var(--success){% elif mif.f1_score >= 0.5 %}var(--warning){% else %}var(--danger){% endif %}">{{ (mif.f1_score * 100)|round(1) }}%</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">F1-SCORE</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">
+          TP={{ mif.tp }} FP={{ mif.fp }} FN={{ mif.fn }} | Détectées={{ mif.detected_count }} / Ground truth={{ mif.ground_truth_count }}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Cas où IF détecte ce que Z-Score manque -->
+    {% if comp.cas_if_superieur %}
+    <div style="margin-top:12px;background:rgba(0,200,255,.07);border:1px solid rgba(0,200,255,.2);border-radius:8px;padding:12px 16px">
+      <div style="font-size:13px;font-weight:700;color:var(--cyan);margin-bottom:8px">
+        <i class="fas fa-lightbulb"></i> Apport concret d'Isolation Forest : {{ comp.cas_if_superieur|length }} anomalie(s) contextuelle(s) non détectée(s) par Z-Score
+      </div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">
+        Ces anomalies ont un z-score &lt; 3 (donc invisibles au Z-Score) mais sont statistiquement isolées dans l'espace de données —
+        Isolation Forest les identifie grâce à sa capacité à détecter les points rares dans une distribution multidimensionnelle.
+      </div>
+      {% for cas in comp.cas_if_superieur %}
+      <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:12px">
+        <span style="font-family:var(--font-mono);color:var(--cyan)">Index #{{ cas.index }}</span>
+        &nbsp;—&nbsp; Valeur : <strong>{{ cas.valeur }}</strong>
+        &nbsp;—&nbsp; Z-Score : <span style="color:var(--success)">{{ cas.z_score }} &lt; 3 (Z-Score ne détecte pas)</span>
+        <div style="color:var(--muted);font-size:11px;margin-top:3px"><i class="fas fa-info-circle"></i> {{ cas.explication }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="margin-top:12px;background:rgba(100,100,100,.05);border:1px solid rgba(100,100,100,.15);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--muted)">
+      <i class="fas fa-equals"></i> <strong>Accord complet entre les méthodes</strong> sur ces données —
+      les deux algorithmes détectent les mêmes anomalies. Pour observer l'apport d'IF, importez des données avec des anomalies contextuelles (valeurs modérément hors-norme dans un contexte inhabituel, ex: vibration normale à chaud mais anormale à froid).
+    </div>
+    {% endif %}
+
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;font-style:italic">
+      {{ mz.note if mz.note is defined else '' }} — Norme de référence : règle 3σ (99.7% de la distribution normale, ISO 13849)
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ TÂCHE 4 : Validation des anomalies + Interprétation métier ═════════ -->
+{% set val = result.validation %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <h3><i class="fas fa-shield-check" style="color:var(--success)"></i> Tâche 4 — Validation, Analyse & Interprétation Métier</h3>
+    <span style="font-size:13px;color:var(--text-secondary)">{{ val.qualite }}</span>
+  </div>
+  <div style="padding:14px 20px">
+    {% if val.ajustement_seuil %}
+    <div style="background:rgba(255,180,0,.1);border:1px solid rgba(255,180,0,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px">
+      <i class="fas fa-lightbulb" style="color:var(--warning)"></i>
+      <strong>Ajustement suggéré :</strong> threshold → {{ val.ajustement_seuil.nouveau_threshold }}
+      (raison : {{ val.ajustement_seuil.raison }})
+    </div>
+    {% endif %}
+
+    {% if val.clusters %}
+    <div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary)">
+      <i class="fas fa-object-group" style="color:var(--cyan)"></i>
+      <strong>{{ val.clusters|length }} cluster(s)</strong> d'anomalies détecté(s)
+    </div>
+    {% endif %}
+
+    <!-- Encadré Normes Industrielles -->
+    <div style="margin-bottom:14px;background:rgba(74,158,255,.07);border:1px solid rgba(74,158,255,.25);border-radius:8px;padding:12px 16px">
+      <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px">
+        <i class="fas fa-book-open"></i> Référentiel Normatif — Lien entre seuil 3σ et normes industrielles concrètes
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:11px">
+        <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px">
+          <div style="font-weight:700;color:var(--danger);margin-bottom:3px">🌡 Température (°C)</div>
+          <div style="color:var(--text-secondary)">IEC 60034-1 classe F : T<sub>max</sub> &lt; 85°C bobinage</div>
+          <div style="color:var(--muted);margin-top:2px">ISO 13849-1 SIL2 pour équipements critiques</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px">
+          <div style="font-weight:700;color:var(--warning);margin-bottom:3px">📳 Vibration (mm/s RMS)</div>
+          <div style="color:var(--text-secondary)">ISO 10816-3 : zone B ≤4.5 / zone C ≤7.1 / zone D &gt;7.1</div>
+          <div style="color:var(--muted);margin-top:2px;color:var(--danger)">Arrêt obligatoire en zone D</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px">
+          <div style="font-weight:700;color:var(--cyan);margin-bottom:3px">💧 Pression (bar)</div>
+          <div style="color:var(--text-secondary)">PED 2014/68/UE : PMA ne doit jamais être dépassée</div>
+          <div style="color:var(--muted);margin-top:2px">ISO 4413 circuits hydrauliques</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px">
+          <div style="font-weight:700;color:var(--success);margin-bottom:3px">💧 Humidité (%HR)</div>
+          <div style="color:var(--text-secondary)">IEC 60721-3-3 : 25–75% HR (classe 3K5)</div>
+          <div style="color:var(--muted);margin-top:2px">IEC 61340-5-1 : &lt;30%HR = risque ESD critique</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px">
+          <div style="font-weight:700;color:var(--danger);margin-bottom:3px">⚡ Courant électrique (A)</div>
+          <div style="color:var(--text-secondary)">IEC 60947-4-1 : protection à 1.15 × In moteur</div>
+          <div style="color:var(--muted);margin-top:2px">IEC 60034-1 : déséquilibre phases max ±2%</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px">
+          <div style="font-weight:700;color:var(--text-secondary);margin-bottom:3px">📐 Règle 3σ (universel)</div>
+          <div style="color:var(--text-secondary)">99.7% des valeurs dans [μ−3σ, μ+3σ]</div>
+          <div style="color:var(--muted);margin-top:2px">EN 61508 SIL — sécurité fonctionnelle</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tableau des anomalies détaillées avec interprétation métier enrichie -->
+    {% if val.anomalies_details %}
+    <div style="max-height:600px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:var(--bg-secondary);font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--muted)">
+            <th style="padding:7px 12px;text-align:left">Horodatage</th>
+            <th style="padding:7px 12px;text-align:right">Valeur</th>
+            <th style="padding:7px 12px;text-align:right">Écart</th>
+            <th style="padding:7px 12px;text-align:center">Z</th>
+            <th style="padding:7px 12px;text-align:center">Gravité</th>
+            <th style="padding:7px 12px;text-align:left">Cause probable</th>
+            <th style="padding:7px 12px;text-align:left">Action recommandée</th>
+            <th style="padding:7px 12px;text-align:left">Impact &amp; Norme</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in val.anomalies_details %}
+          <tr style="border-bottom:1px solid var(--border);vertical-align:top">
+            <td style="padding:6px 12px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">{{ a.ts }}</td>
+            <td style="padding:6px 12px;text-align:right;font-family:var(--font-mono)">{{ a.valeur }}</td>
+            <td style="padding:6px 12px;text-align:right;font-family:var(--font-mono);color:{% if a.ecart > 0 %}var(--danger){% else %}var(--success){% endif %}">
+              {% if a.ecart > 0 %}+{% endif %}{{ a.ecart }}
+            </td>
+            <td style="padding:6px 12px;text-align:center;font-family:var(--font-mono)">{{ a.z }}</td>
+            <td style="padding:6px 12px;text-align:center">
+              <span class="badge-{{ a.gravite|lower }}">{{ a.gravite }}</span>
+            </td>
+            <td style="padding:6px 12px;font-size:11px;color:var(--text-secondary);max-width:220px">
+              <i class="fas fa-search" style="color:var(--primary);font-size:10px"></i>
+              {{ a.cause_probable if a.cause_probable is defined else '—' }}
+            </td>
+            <td style="padding:6px 12px;font-size:11px;max-width:220px">
+              {% if a.action_recommandee is defined and a.action_recommandee %}
+              <span style="color:var(--warning)"><i class="fas fa-wrench"></i> {{ a.action_recommandee }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td style="padding:6px 12px;font-size:10px;max-width:200px">
+              {% if a.impact_potentiel is defined and a.impact_potentiel %}
+              <div style="color:var(--danger);margin-bottom:4px"><i class="fas fa-exclamation-triangle"></i> {{ a.impact_potentiel }}</div>
+              {% endif %}
+              {% if a.norme_ref is defined and a.norme_ref %}
+              <div style="color:var(--muted);font-style:italic"><i class="fas fa-book"></i> {{ a.norme_ref }}</div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">
+      <i class="fas fa-check-circle" style="font-size:20px;color:var(--success);display:block;margin-bottom:8px"></i>
+      Aucune anomalie détectée avec les paramètres actuels
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ══ Historique des analyses ════════════════════════════════════════════ -->
+{% if analyses_hist %}
+<div class="card">
+  <div class="card-header"><h3><i class="fas fa-history" style="color:var(--muted)"></i> Historique des Analyses</h3></div>
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="background:var(--bg-secondary);font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--muted)">
+        <th style="padding:7px 12px;text-align:left">Date</th>
+        <th style="padding:7px 12px;text-align:left">Méthode</th>
+        <th style="padding:7px 12px;text-align:left">Résultat</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in analyses_hist %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 12px;font-family:var(--font-mono);color:var(--muted)">{{ a.date_analyse[:16] }}</td>
+        <td style="padding:6px 12px"><span style="background:var(--bg-secondary);padding:2px 8px;border-radius:4px;font-family:var(--font-mono);font-size:10px">{{ a.methode }}</span></td>
+        <td style="padding:6px 12px;color:var(--text-secondary)">{{ a.resultat }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endif %} {# fin if erreur #}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Données passées depuis Flask ───────────────────────────────────────────
+const LABELS    = {{ (result.data.timestamps or []) | tojson }};
+const VALUES    = {{ (result.data.mesures or []) | tojson }};
+const ROLLING   = {{ (result.indicateurs.rolling_mean  if result.indicateurs and result.indicateurs.rolling_mean  is defined else []) | tojson }};
+const SEUIL_H   = {{ (result.indicateurs.seuil_haut_dyn if result.indicateurs and result.indicateurs.seuil_haut_dyn is defined else []) | tojson }};
+const SEUIL_B   = {{ (result.indicateurs.seuil_bas_dyn  if result.indicateurs and result.indicateurs.seuil_bas_dyn  is defined else []) | tojson }};
+const ANO_IDX   = {{ (result.anomaly_indices or []) | tojson }};
+const UNITE     = {{ (result.resume.unite or '') | tojson }};
+
+// ── Palette ────────────────────────────────────────────────────────────────
+const C_BLUE    = '#4a9eff';
+const C_CYAN    = '#00c8ff';
+const C_RED     = '#ff4646';
+const C_GREEN   = '#00dc82';
+const C_YELLOW  = '#ffc107';
+const C_GRAY    = 'rgba(122,154,191,.3)';
+
+// ══ TÂCHE 5 : Graphique 1 — Série complète + points anomalies marqués ══════
+(function(){
+  const ctx = document.getElementById('chartSerie');
+  if(!ctx || !VALUES.length) return;
+
+  // Points anomalies : colorés en rouge
+  const ptColors = VALUES.map((_,i) => ANO_IDX.includes(i) ? C_RED : 'transparent');
+  const ptRadius = VALUES.map((_,i) => ANO_IDX.includes(i) ? 6 : 2);
+  const ptBorder = VALUES.map((_,i) => ANO_IDX.includes(i) ? C_RED : C_BLUE);
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: LABELS,
+      datasets: [
+        {
+          label: 'Valeur ' + UNITE,
+          data: VALUES,
+          borderColor: C_BLUE,
+          backgroundColor: 'rgba(74,158,255,.06)',
+          borderWidth: 1.5,
+          pointBackgroundColor: ptColors,
+          pointBorderColor   : ptBorder,
+          pointRadius        : ptRadius,
+          pointHoverRadius   : 7,
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: 'Seuil Haut',
+          data: SEUIL_H,
+          borderColor: C_RED,
+          borderWidth: 1,
+          borderDash: [5,4],
+          pointRadius: 0,
+          fill: false,
+        },
+        {
+          label: 'Seuil Bas',
+          data: SEUIL_B,
+          borderColor: C_GREEN,
+          borderWidth: 1,
+          borderDash: [5,4],
+          pointRadius: 0,
+          fill: false,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            afterBody: function(ctx){
+              const i = ctx[0].dataIndex;
+              if(ANO_IDX.includes(i)) return ['⚠ ANOMALIE DÉTECTÉE'];
+              return [];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 12, maxRotation: 30 } },
+        y: { title: { display: true, text: UNITE } }
+      }
+    }
+  });
+})();
+
+// ══ TÂCHE 5 : Graphique 2 — Moyenne mobile ════════════════════════════════
+(function(){
+  const ctx = document.getElementById('chartMoyenne');
+  if(!ctx || !ROLLING.length) return;
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: LABELS,
+      datasets: [
+        { label: 'Valeur', data: VALUES,  borderColor: C_GRAY,  borderWidth:1, pointRadius:0, fill:false },
+        { label: 'Moy. Mobile', data: ROLLING, borderColor: C_CYAN, borderWidth:2, pointRadius:0, fill:false, tension:0.4 },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend:{ position:'top' } },
+      scales: { x:{ ticks:{ maxTicksLimit:8, maxRotation:20 } } }
+    }
+  });
+})();
+
+// ══ TÂCHE 5 : Graphique 3 — Z-Scores avec ligne de seuil ══════════════════
+(function(){
+  const ctx = document.getElementById('chartZScore');
+  if(!ctx || !VALUES.length) return;
+
+  // Re-calculer les z-scores côté JS (médiane simple)
+  const sorted = [...VALUES].sort((a,b)=>a-b);
+  const mid  = Math.floor(sorted.length/2);
+  const med  = sorted.length%2 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2;
+  const mads = VALUES.map(v=>Math.abs(v-med)).sort((a,b)=>a-b);
+  const mad  = mads.length%2 ? mads[mid] : (mads[mid-1]+mads[mid])/2;
+  const std_rob = mad > 0 ? 1.4826*mad : 1;
+  const zscores = VALUES.map(v => Math.abs((v-med)/std_rob));
+  const threshold = {{ threshold }};
+  const zColors = zscores.map(z => z > threshold ? C_RED : C_BLUE);
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: LABELS,
+      datasets: [
+        {
+          label: 'Z-Score Robuste',
+          data: zscores,
+          backgroundColor: zColors,
+          borderRadius: 2,
+        },
+        {
+          label: 'Seuil σ=' + threshold,
+          data: Array(VALUES.length).fill(threshold),
+          type: 'line',
+          borderColor: C_YELLOW,
+          borderWidth: 2,
+          borderDash: [6,4],
+          pointRadius: 0,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend:{ position:'top' } },
+      scales: {
+        x: { ticks:{ maxTicksLimit:8, maxRotation:20 } },
+        y: { title:{ display:true, text:'Z-Score' } }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

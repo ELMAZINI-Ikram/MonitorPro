@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% block title %}Règles d'alerte – Admin{% endblock %}
+{% block page_title %}Règles d'Alerte{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i> Règles ({{ regles|length }})</h3>
+    <button class="btn btn-primary" onclick="openModal('addRegle')">
+      <i class="fas fa-plus"></i> Ajouter
+    </button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Équipement</th><th>Indicateur</th><th>Condition</th><th>Seuil</th><th>Niveau</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+      {% for r in regles %}
+      <tr>
+        <td style="color:var(--muted)">#{{ r.id }}</td>
+        <td>{{ r.eq_nom }}</td>
+        <td>{{ r.ind_nom }} <small style="color:var(--muted)">({{ r.unite }})</small></td>
+        <td>
+          <code>
+            {% if r.type_seuil == 'intervalle' %}
+              📏 Hors intervalle
+            {% elif r.condition_op == 'GREATER_THAN' %}&gt; (supérieur à)
+            {% elif r.condition_op == 'LESS_THAN' %}&lt; (inférieur à)
+            {% else %}= (égal à){% endif %}
+          </code>
+        </td>
+        <td>
+          {% if r.type_seuil == 'intervalle' %}
+            <span style="font-size:12px">
+              <strong>[{{ r.seuil_bas }}, {{ r.seuil_haut }}]</strong>
+              <span style="color:var(--muted)"> — alerte si hors plage</span>
+            </span>
+          {% else %}
+            <strong>{{ r.seuil }}</strong>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.niveau=='CRITICAL' %}<span class="badge badge-danger">🔴 CRITICAL</span>
+          {% elif r.niveau=='WARNING'  %}<span class="badge badge-warning">🟡 WARNING</span>
+          {% else %}<span class="badge badge-primary">🔵 INFO</span>{% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('admin.delete_regle', rid=r.id) }}"
+                style="display:inline"
+                onsubmit="return confirm('Supprimer cette règle ?')">
+            <button type="submit" class="btn btn-danger btn-sm" title="Supprimer">
+              <i class="fas fa-trash"></i>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL AJOUTER -->
+<div class="modal-overlay" id="addRegle">
+  <div class="modal">
+    <h3><i class="fas fa-plus-circle" style="color:var(--primary)"></i> Nouvelle Règle d'Alerte</h3>
+    <form method="POST" action="{{ url_for('admin.add_regle') }}">
+      <div class="form-group">
+        <label class="form-label">Indicateur *</label>
+        <select name="id_ind" class="form-control" required>
+          <option value="">-- Sélectionner --</option>
+          {% for ind in inds %}
+          <option value="{{ ind.id_ind }}">{{ ind.eq_nom }} → {{ ind.nom }} ({{ ind.unite }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Type de seuil : fixe ou intervalle -->
+      <div class="form-group">
+        <label class="form-label">Type de seuil *</label>
+        <div style="display:flex;gap:12px;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
+            <input type="radio" name="type_seuil" value="fixe" checked onchange="switchSeuil()">
+            📐 Seuil fixe (ex : T° &gt; 85°C)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
+            <input type="radio" name="type_seuil" value="intervalle" onchange="switchSeuil()">
+            📏 Intervalle (ex : P hors [84.8, 85.4])
+          </label>
+        </div>
+      </div>
+
+      <!-- Mode seuil fixe -->
+      <div id="sectionFixe" class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Condition *</label>
+          <select name="condition_op" class="form-control">
+            <option value="GREATER_THAN">Supérieur à ( &gt; )</option>
+            <option value="LESS_THAN">Inférieur à ( &lt; )</option>
+            <option value="EQUALS">Égal à ( = )</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Seuil *</label>
+          <input type="number" name="seuil" id="seuilFixe" class="form-control" step="0.01"
+                 placeholder="Ex : 85">
+        </div>
+      </div>
+
+      <!-- Mode intervalle -->
+      <div id="sectionIntervalle" style="display:none">
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;
+                    margin-bottom:12px;font-size:12px;color:var(--muted)">
+          ℹ L'alerte se déclenche quand la valeur est <strong>en dehors</strong> de l'intervalle
+          [seuil bas, seuil haut]. Idéal pour les plages de fonctionnement nominales.
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Seuil bas *</label>
+            <input type="number" name="seuil_bas" id="seuilBas" class="form-control" step="0.01"
+                   placeholder="Ex : 84.8">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Seuil haut *</label>
+            <input type="number" name="seuil_haut" id="seuilHaut" class="form-control" step="0.01"
+                   placeholder="Ex : 85.4">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Niveau de criticité *</label>
+        <select name="niveau" class="form-control" required>
+          <option value="INFO">🔵 INFO</option>
+          <option value="WARNING">🟡 WARNING</option>
+          <option value="CRITICAL">🔴 CRITICAL</option>
+        </select>
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('addRegle')" class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function switchSeuil() {
+  const fixe = document.querySelector('input[name="type_seuil"][value="fixe"]').checked;
+  document.getElementById('sectionFixe').style.display     = fixe ? 'grid' : 'none';
+  document.getElementById('sectionIntervalle').style.display = fixe ? 'none' : 'block';
+  document.getElementById('seuilFixe').required  = fixe;
+  document.getElementById('seuilBas').required   = !fixe;
+  document.getElementById('seuilHaut').required  = !fixe;
+}
+</script>
+{% endblock %}

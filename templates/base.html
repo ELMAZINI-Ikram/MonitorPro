@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}MonitorPro{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- ─── Sidebar ─────────────────────────────────────────────────── -->
+<nav class="sidebar" style="position:fixed;top:0;left:0;height:100vh;z-index:100;">
+  <div class="sidebar-brand">
+    <div class="brand-icon"><i class="fas fa-industry"></i></div>
+    <div>
+      <div class="brand-name">MonitorPro</div>
+      <div class="brand-sub">v2.0 · Industriel</div>
+    </div>
+  </div>
+
+  <div class="sidebar-nav">
+    <span class="nav-section">Système</span>
+    <a href="{{ url_for('dashboard.index') }}" class="nav-link {% if request.endpoint=='dashboard.index' %}active{% endif %}">
+      <i class="fas fa-th-large"></i> Dashboard
+    </a>
+    <a href="{{ url_for('shared.equipements') }}" class="nav-link {% if request.endpoint=='shared.equipements' %}active{% endif %}">
+      <i class="fas fa-microchip"></i> Équipements
+    </a>
+    <a href="{{ url_for('responsable.alertes') }}" class="nav-link {% if request.endpoint=='responsable.alertes' %}active{% endif %}">
+      <i class="fas fa-bell"></i> Alertes
+    </a>
+    {% if session.user_role == 'TECHNICIEN' %}
+    <a href="{{ url_for('technicien.alertes') }}" class="nav-link {% if request.endpoint=='technicien.alertes' %}active{% endif %}">
+      <i class="fas fa-bell"></i> Mes Alertes
+    </a>
+    {% endif %}
+
+    {% if session.user_role in ['TECHNICIEN','ADMIN'] %}
+    <span class="nav-section">Acquisition</span>
+    <a href="{{ url_for('technicien.add_mesure') }}" class="nav-link {% if request.endpoint=='technicien.add_mesure' %}active{% endif %}">
+      <i class="fas fa-plus-square"></i> Saisir Mesure
+    </a>
+    <a href="{{ url_for('serie.index') }}" class="nav-link {% if 'serie.' in request.endpoint %}active{% endif %}">
+      <i class="fas fa-wave-square"></i> Séries Temp.
+    </a>
+    {% endif %}
+
+    {% if session.user_role in ['ADMIN','RESPONSABLE'] %}
+    <span class="nav-section">Maintenance</span>
+    <a href="{{ url_for('panne.suivi') }}" class="nav-link {% if 'panne.' in request.endpoint and request.endpoint != 'panne.mes_pannes' %}active{% endif %}">
+      <i class="fas fa-tools"></i> Suivi Pannes
+    </a>
+    <a href="{{ url_for('panne.signaler') }}" class="nav-link {% if request.endpoint=='panne.signaler' %}active{% endif %}">
+      <i class="fas fa-exclamation-circle"></i> Signaler Panne
+    </a>
+    {% endif %}
+
+    {% if session.user_role == 'TECHNICIEN' %}
+    <span class="nav-section">Maintenance</span>
+    <a href="{{ url_for('panne.mes_pannes') }}" class="nav-link {% if request.endpoint=='panne.mes_pannes' %}active{% endif %}">
+      <i class="fas fa-wrench"></i> Mes Pannes
+    </a>
+    {% endif %}
+
+    {% if session.user_role in ['ADMIN','RESPONSABLE'] %}
+    <span class="nav-section">Fiabilité</span>
+    <a href="{{ url_for('fiabilite.index') }}" class="nav-link {% if 'fiabilite.' in request.endpoint %}active{% endif %}">
+      <i class="fas fa-heartbeat"></i> MTBF / MTTR
+    </a>
+    {% endif %}
+
+    {% if session.user_role in ['ADMIN','RESPONSABLE','TECHNICIEN'] %}
+    <span class="nav-section">Analyse IA</span>
+    <a href="{{ url_for('analyse.index') }}" class="nav-link {% if request.endpoint and 'analyse.' in request.endpoint and request.endpoint != 'analyse.validation_systeme' %}active{% endif %}">
+      <i class="fas fa-brain"></i> Analyse Temporelle
+    </a>
+    <a href="{{ url_for('analyse.validation_systeme') }}" class="nav-link {% if request.endpoint=='analyse.validation_systeme' %}active{% endif %}">
+      <i class="fas fa-check-double"></i> Validation Système
+    </a>
+    {% endif %}
+
+    {% if session.user_role in ['ADMIN','RESPONSABLE'] %}
+    <span class="nav-section">Rapports</span>
+    <a href="{{ url_for('shared.rapports') }}" class="nav-link {% if request.endpoint=='shared.rapports' %}active{% endif %}">
+      <i class="fas fa-file-chart-bar"></i> Rapports
+    </a>
+    {% endif %}
+
+    {% if session.user_role == 'ADMIN' %}
+    <span class="nav-section">Administration</span>
+    <a href="{{ url_for('admin.users') }}" class="nav-link {% if request.endpoint=='admin.users' %}active{% endif %}">
+      <i class="fas fa-users-cog"></i> Utilisateurs
+    </a>
+    <a href="{{ url_for('admin.equipements') }}" class="nav-link {% if request.endpoint=='admin.equipements' %}active{% endif %}">
+      <i class="fas fa-cog"></i> Équipements
+    </a>
+    <a href="{{ url_for('admin.indicateurs') }}" class="nav-link {% if request.endpoint=='admin.indicateurs' %}active{% endif %}">
+      <i class="fas fa-sliders-h"></i> Indicateurs
+    </a>
+    <a href="{{ url_for('admin.regles') }}" class="nav-link {% if request.endpoint=='admin.regles' %}active{% endif %}">
+      <i class="fas fa-shield-alt"></i> Règles Alerte
+    </a>
+    <a href="{{ url_for('admin.config_email') }}" class="nav-link {% if request.endpoint=='admin.config_email' %}active{% endif %}">
+      <i class="fas fa-envelope-open-text"></i> Config Email
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar">{{ session.user_name[0].upper() if session.user_name else '?' }}</div>
+      <div>
+        <div class="user-name">{{ session.user_name }}</div>
+        <div class="user-role">{{ session.user_role }}</div>
+      </div>
+    </div>
+    <a href="{{ url_for('auth.logout') }}" class="btn-logout" title="Déconnexion"><i class="fas fa-power-off"></i></a>
+  </div>
+</nav>
+
+<!-- ─── Main ────────────────────────────────────────────────────── -->
+<div class="main">
+  <div class="topbar">
+    <h2>{% block page_title %}Dashboard{% endblock %}</h2>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="topbar-date">
+        <i class="fas fa-circle dot-cyan" style="font-size:6px;animation:live-blink 2s infinite"></i>
+        {{ now.strftime('%d %b %Y — %H:%M') }}
+      </span>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-zone">
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}"><i class="fas fa-info-circle"></i> {{ msg }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <div class="content">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block extra_js %}{% endblock %}
+
+<script>
+// Chart.js global defaults — dark theme
+if(window.Chart){
+  Chart.defaults.color = '#7a9abf';
+  Chart.defaults.borderColor = '#1a2540';
+  Chart.defaults.font.family = "'JetBrains Mono', monospace";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.plugins.legend.labels.boxWidth = 10;
+  Chart.defaults.plugins.legend.labels.padding = 14;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+{% block title %}Fiabilité & KPIs — MonitorPro{% endblock %}
+{% block page_title %}Fiabilité & Maintenabilité{% endblock %}
+
+{% block extra_css %}
+<style>
+.score-ring { position:relative; display:inline-flex; align-items:center; justify-content:center; }
+.score-ring svg { transform: rotate(-90deg); }
+.score-ring .score-text { position:absolute; font-size:22px; font-weight:800; }
+.kpi-box { background:var(--card); border-radius:12px; border:1px solid var(--border); padding:20px; text-align:center; }
+.kpi-value { font-size:28px; font-weight:800; line-height:1; margin-bottom:4px; }
+.kpi-label { font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
+.kpi-unit  { font-size:13px; color:var(--muted); }
+.eq-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr 120px; gap:16px; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border); }
+.eq-row:hover { background:var(--card2); }
+.eq-header { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+.health-bar-wrap { background:var(--bg3); border-radius:20px; height:8px; overflow:hidden; }
+.health-bar { height:100%; border-radius:20px; transition:.5s; }
+.badge-score { display:inline-flex; align-items:center; padding:4px 12px; border-radius:20px; font-size:13px; font-weight:700; }
+.score-excellent { background:var(--success-dim); color:var(--success); }
+.score-good      { background:#d1fae5; color:#065f46; }
+.score-warning   { background:var(--warning-dim); color:var(--warning); }
+.score-danger    { background:var(--danger-dim); color:var(--danger); }
+.score-critical  { background:#fce7f3; color:#9d174d; }
+.legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- KPIs globaux -->
+<div id="global-kpis" class="stats-grid" style="margin-bottom:28px">
+  <div class="kpi-box">
+    <div class="kpi-value" id="score-moyen" style="color:var(--primary)">—</div>
+    <div class="kpi-label">Score Santé Moyen</div>
+    <div class="kpi-unit">/ 100</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-value" id="dispo-moyenne" style="color:var(--success)">—</div>
+    <div class="kpi-label">Disponibilité Moyenne</div>
+    <div class="kpi-unit">%</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-value" style="color:var(--warning)">{{ data|length }}</div>
+    <div class="kpi-label">Équipements Surveillés</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-value" style="color:var(--danger)">
+      {{ data | selectattr('kpis.nb_pannes', 'gt', 0) | list | length }}
+    </div>
+    <div class="kpi-label">Équipements avec Pannes</div>
+  </div>
+</div>
+
+<!-- Légende scores -->
+<div class="card" style="margin-bottom:24px">
+  <div class="card-header">
+    <h3><i class="fas fa-heartbeat" style="color:var(--danger)"></i> Score de Santé par Équipement</h3>
+    <div style="display:flex;gap:12px;font-size:12px;align-items:center">
+      <span><span class="legend-dot" style="background:#15803d"></span>Excellent (≥90)</span>
+      <span><span class="legend-dot" style="background:#d97706"></span>Moyen (70-89)</span>
+      <span><span class="legend-dot" style="background:#dc2626"></span>Critique (&lt;70)</span>
+    </div>
+  </div>
+
+  <!-- Header table -->
+  <div class="eq-row eq-header" style="border-bottom:2px solid var(--border)">
+    <span>Équipement</span>
+    <span>Score Santé</span>
+    <span>MTBF (h)</span>
+    <span>MTTR (h)</span>
+    <span>Disponibilité</span>
+    <span>Nb Pannes</span>
+    <span>Action</span>
+  </div>
+
+  {% for item in data %}
+  {% set eq = item.eq %}
+  {% set kpis = item.kpis %}
+  {% set score = item.score %}
+
+  <div class="eq-row">
+    <!-- Équipement -->
+    <div>
+      <div style="font-weight:700;font-size:14px">{{ eq.nom }}</div>
+      <div style="font-size:12px;color:var(--muted)">{{ eq.type }} — {{ eq.localisation or 'N/A' }}</div>
+      <div style="margin-top:4px">
+        {% if eq.statut == 'actif' %}<span class="badge badge-success" style="font-size:11px">● Actif</span>
+        {% elif eq.statut == 'en panne' %}<span class="badge badge-danger" style="font-size:11px">● En Panne</span>
+        {% else %}<span class="badge badge-secondary" style="font-size:11px">○ Inactif</span>{% endif %}
+      </div>
+    </div>
+
+    <!-- Score -->
+    <div>
+      {% if score >= 90 %}
+      <span class="badge-score score-excellent">{{ score }}/100</span>
+      {% elif score >= 70 %}
+      <span class="badge-score score-warning">{{ score }}/100</span>
+      {% elif score >= 50 %}
+      <span class="badge-score score-danger">{{ score }}/100</span>
+      {% else %}
+      <span class="badge-score score-critical">{{ score }}/100</span>
+      {% endif %}
+      <div class="health-bar-wrap" style="margin-top:8px;width:100px">
+        <div class="health-bar" style="width:{{ score }}%;background:{% if score >= 90 %}#16a34a{% elif score >= 70 %}#d97706{% else %}#dc2626{% endif %}"></div>
+      </div>
+    </div>
+
+    <!-- MTBF -->
+    <div>
+      {% if kpis.mtbf %}
+      <span style="font-size:18px;font-weight:700;color:var(--primary)">{{ kpis.mtbf }}</span>
+      <span style="font-size:12px;color:var(--muted)"> h</span>
+      <div style="font-size:11px;color:var(--muted)">entre pannes</div>
+      {% else %}
+      <span style="color:var(--muted);font-size:13px">N/A</span>
+      {% endif %}
+    </div>
+
+    <!-- MTTR -->
+    <div>
+      {% if kpis.mttr %}
+      <span style="font-size:18px;font-weight:700;color:var(--warning)">{{ kpis.mttr }}</span>
+      <span style="font-size:12px;color:var(--muted)"> h</span>
+      <div style="font-size:11px;color:var(--muted)">réparation moy.</div>
+      {% else %}
+      <span style="color:var(--muted);font-size:13px">N/A</span>
+      {% endif %}
+    </div>
+
+    <!-- Disponibilité -->
+    <div>
+      {% if kpis.disponibilite %}
+      <span style="font-size:18px;font-weight:700;
+        color:{% if kpis.disponibilite >= 95 %}var(--success){% elif kpis.disponibilite >= 85 %}var(--warning){% else %}var(--danger){% endif %}">
+        {{ kpis.disponibilite }}%
+      </span>
+      {% else %}
+      <span style="font-weight:700;color:var(--success)">100%</span>
+      {% endif %}
+    </div>
+
+    <!-- Nb Pannes -->
+    <div style="text-align:center">
+      <span style="font-size:20px;font-weight:800;
+        color:{% if kpis.nb_pannes == 0 %}var(--success){% elif kpis.nb_pannes <= 2 %}var(--warning){% else %}var(--danger){% endif %}">
+        {{ kpis.nb_pannes }}
+      </span>
+      {% if kpis.pannes_resolues < kpis.nb_pannes %}
+      <div style="font-size:11px;color:var(--danger)">{{ kpis.nb_pannes - kpis.pannes_resolues }} ouverte(s)</div>
+      {% endif %}
+    </div>
+
+    <!-- Action -->
+    <div>
+      <a href="{{ url_for('fiabilite.detail', id_eq=eq.id_equipement) }}" class="btn btn-primary btn-sm">
+        <i class="fas fa-chart-bar"></i> Détails
+      </a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Graphique comparatif scores -->
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fas fa-chart-bar" style="color:var(--primary)"></i> Comparaison des Scores</h3>
+    </div>
+    <div class="card-body">
+      <div style="height:280px"><canvas id="chartScores"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fas fa-chart-pie" style="color:var(--info)"></i> Disponibilité par Équipement</h3>
+    </div>
+    <div class="card-body">
+      <div style="height:280px"><canvas id="chartDispo"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Explication des indicateurs -->
+<div class="card" style="margin-top:24px">
+  <div class="card-header">
+    <h3><i class="fas fa-info-circle" style="color:var(--info)"></i> Définitions des Indicateurs</h3>
+  </div>
+  <div class="card-body">
+    <div class="grid-3">
+      <div style="background:#f0f9ff;border-radius:10px;padding:16px">
+        <div style="font-weight:700;color:var(--primary);margin-bottom:8px"><i class="fas fa-clock"></i> MTBF</div>
+        <div style="font-size:13px;color:var(--text)"><strong>Mean Time Between Failures</strong></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">Temps moyen entre deux pannes consécutives. Un MTBF élevé indique un équipement fiable.</div>
+        <div style="font-size:12px;margin-top:8px;font-style:italic;color:var(--primary)">MTBF = Temps total en service / Nombre de pannes</div>
+      </div>
+      <div style="background:#fff7ed;border-radius:10px;padding:16px">
+        <div style="font-weight:700;color:var(--warning);margin-bottom:8px"><i class="fas fa-tools"></i> MTTR</div>
+        <div style="font-size:13px;color:var(--text)"><strong>Mean Time To Repair</strong></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">Temps moyen nécessaire pour réparer une panne. Un MTTR faible indique une maintenance efficace.</div>
+        <div style="font-size:12px;margin-top:8px;font-style:italic;color:var(--warning)">MTTR = Σ Durées de réparation / Nombre de réparations</div>
+      </div>
+      <div style="background:#f0fdf4;border-radius:10px;padding:16px">
+        <div style="font-weight:700;color:var(--success);margin-bottom:8px"><i class="fas fa-percent"></i> Disponibilité</div>
+        <div style="font-size:13px;color:var(--text)"><strong>Taux de Disponibilité</strong></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">Pourcentage de temps où l'équipement est opérationnel. Objectif industriel : > 95%.</div>
+        <div style="font-size:12px;margin-top:8px;font-style:italic;color:var(--success)">D = MTBF / (MTBF + MTTR) × 100</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Charger KPIs globaux
+fetch('/fiabilite/api/global')
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('score-moyen').textContent = d.score_moyen;
+    document.getElementById('dispo-moyenne').textContent = d.dispo_moyenne + '%';
+
+    // Graphique scores
+    const noms = d.equipements.map(e => e.nom.split(' ').slice(0,2).join(' '));
+    const scores = d.equipements.map(e => e.score);
+    const colors = scores.map(s => s >= 90 ? '#16a34a' : s >= 70 ? '#d97706' : '#dc2626');
+
+    new Chart(document.getElementById('chartScores').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: noms,
+        datasets: [{
+          label: 'Score de Santé',
+          data: scores,
+          backgroundColor: colors,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { min: 0, max: 100, ticks: { callback: v => v + '/100' } }
+        }
+      }
+    });
+
+    // Graphique disponibilité
+    const dispos = d.equipements.map(e => e.disponibilite || 100);
+    const dispoColors = dispos.map(d => d >= 95 ? '#16a34a' : d >= 85 ? '#d97706' : '#dc2626');
+
+    new Chart(document.getElementById('chartDispo').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: noms,
+        datasets: [{
+          data: dispos,
+          backgroundColor: ['#1a56db','#16a34a','#d97706','#dc2626','#9333ea','#0891b2'],
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 11 } } },
+          tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + '%' } }
+        }
+      }
+    });
+  });
+</script>
+{% endblock %}

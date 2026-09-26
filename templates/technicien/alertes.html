@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+{% block title %}Mes Alertes – MonitorPro{% endblock %}
+{% block page_title %}Alertes — Vue Technicien{% endblock %}
+
+{% block content %}
+
+<!-- ══ KPIs ══════════════════════════════════════════════════════════════ -->
+<div class="stats-grid" style="margin-bottom:16px">
+  <div class="stat-card">
+    <div class="stat-icon si-blue"><i class="fas fa-bell"></i></div>
+    <div><div class="stat-label">Total (mes équip.)</div>
+      <div class="stat-value">{{ stats.total }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon si-yellow"><i class="fas fa-exclamation-triangle"></i></div>
+    <div><div class="stat-label">Ouvertes</div>
+      <div class="stat-value" style="color:var(--warning)">{{ stats.ouvertes }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon si-orange"><i class="fas fa-clock"></i></div>
+    <div><div class="stat-label">En Attente</div>
+      <div class="stat-value" style="color:#f59e0b">{{ stats.en_attente }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon si-red"><i class="fas fa-radiation"></i></div>
+    <div><div class="stat-label">Critiques</div>
+      <div class="stat-value" style="color:var(--danger)">{{ stats.alertes_critiques }}</div></div>
+  </div>
+</div>
+
+<!-- ══ Info rôle ══════════════════════════════════════════════════════════ -->
+<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);
+            border-radius:8px;padding:10px 16px;margin-bottom:16px;
+            font-size:13px;color:var(--text)">
+  <i class="fas fa-info-circle" style="color:var(--primary)"></i>
+  Vous visualisez les alertes de <strong>vos équipements assignés</strong>.
+  Vous pouvez <strong>commenter</strong> chaque alerte pour signaler une observation terrain.
+  Pour résoudre ou modifier une alerte, contactez votre responsable.
+</div>
+
+<!-- ══ Filtres ═════════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-body" style="padding:14px 20px">
+    <form method="GET" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:13px;font-weight:600">Niveau :</label>
+        <select name="niveau" class="form-control" style="width:130px" onchange="this.form.submit()">
+          <option value="">Tous</option>
+          <option value="CRITICAL" {% if niveau=='CRITICAL' %}selected{% endif %}>🔴 CRITICAL</option>
+          <option value="WARNING"  {% if niveau=='WARNING'  %}selected{% endif %}>🟡 WARNING</option>
+          <option value="INFO"     {% if niveau=='INFO'     %}selected{% endif %}>🔵 INFO</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:13px;font-weight:600">Statut :</label>
+        <select name="statut" class="form-control" style="width:150px" onchange="this.form.submit()">
+          <option value="">Tous</option>
+          <option value="ouverte"    {% if statut=='ouverte'    %}selected{% endif %}>🔓 Ouverte</option>
+          <option value="en_attente" {% if statut=='en_attente' %}selected{% endif %}>⏳ En Attente</option>
+          <option value="resolue"    {% if statut=='resolue'    %}selected{% endif %}>✅ Résolue</option>
+        </select>
+      </div>
+      {% if niveau or statut %}
+      <a href="{{ url_for('technicien.alertes') }}" class="btn btn-secondary btn-sm">
+        <i class="fas fa-times"></i> Réinitialiser
+      </a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- ══ Tableau alertes ═════════════════════════════════════════════════════ -->
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-bell"></i> Alertes ({{ alertes|length }})</h3>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Date</th><th>Niveau</th>
+          <th>Équipement</th><th>Message</th><th>Statut</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for a in alertes %}
+      <tr>
+        <td style="color:var(--muted);font-size:12px">#{{ a.id_alerte }}</td>
+        <td style="font-size:12px;white-space:nowrap">{{ a.date_creation[:16] }}</td>
+        <td>
+          {% if a.niveau=='CRITICAL' %}
+            <span class="badge badge-danger">🔴 CRITICAL</span>
+          {% elif a.niveau=='WARNING' %}
+            <span class="badge badge-warning">🟡 WARNING</span>
+          {% else %}
+            <span class="badge badge-primary">🔵 INFO</span>
+          {% endif %}
+        </td>
+        <td style="font-size:13px">{{ a.eq_nom or '–' }}</td>
+        <td style="font-size:12px;max-width:220px;overflow:hidden;
+                   text-overflow:ellipsis;white-space:nowrap"
+            title="{{ a.message }}">{{ a.message }}</td>
+        <td>
+          {% set sw = a.statut_workflow or ('resolue' if a.resolue else 'ouverte') %}
+          {% if sw == 'resolue' or a.resolue %}
+            <span class="badge badge-success">✅ Résolue</span>
+          {% elif sw == 'en_attente' %}
+            <span class="badge badge-warning">⏳ En Attente</span>
+          {% else %}
+            <span class="badge badge-danger">🔓 Ouverte</span>
+          {% endif %}
+        </td>
+        <td>
+          <button class="btn btn-secondary btn-sm"
+                  title="Ajouter un commentaire"
+                  onclick="openCommentaire({{ a.id_alerte }})">
+            <i class="fas fa-comment"></i> Commenter
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">
+          <i class="fas fa-check-circle" style="font-size:24px;margin-bottom:8px;display:block;color:var(--success)"></i>
+          Aucune alerte pour vos équipements avec ces critères.
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ Modal commentaire ═══════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="commentaireModal">
+  <div class="modal" style="max-width:480px">
+    <h3><i class="fas fa-comment" style="color:var(--primary)"></i>
+        Commenter — Alerte <span id="commAlerteId"></span></h3>
+
+    <div id="commListe" style="max-height:180px;overflow-y:auto;margin-bottom:14px;
+         background:var(--bg-secondary);border-radius:8px;padding:10px">
+      <div style="color:var(--muted);font-size:13px;text-align:center">Chargement…</div>
+    </div>
+
+    <form method="POST" id="commForm">
+      <div class="form-group">
+        <label class="form-label">Mon commentaire (observation terrain, action effectuée…)</label>
+        <textarea name="commentaire" class="form-control" rows="3"
+                  placeholder="Ex : J'ai vérifié le capteur vibration — huile de graissage renouvelée."
+                  required></textarea>
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('commentaireModal')"
+                class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-paper-plane"></i> Envoyer
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openCommentaire(id) {
+  document.getElementById('commAlerteId').textContent = '#' + id;
+  document.getElementById('commForm').action = '/technicien/alertes/commenter/' + id;
+  const liste = document.getElementById('commListe');
+  liste.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center">Chargement…</div>';
+  openModal('commentaireModal');
+
+  fetch('/responsable/alertes/api/commentaires/' + id)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.length) {
+        liste.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center">Aucun commentaire pour l\'instant.</div>';
+        return;
+      }
+      liste.innerHTML = data.map(c => `
+        <div style="border-bottom:1px solid var(--border);padding:8px 4px;margin-bottom:6px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:3px">
+            <strong>${c.auteur}</strong> (${c.nom_role}) · ${c.date_creation.slice(0,16)}
+          </div>
+          <div style="font-size:13px">${c.commentaire}</div>
+        </div>`).join('');
+    })
+    .catch(() => {
+      liste.innerHTML = '<div style="color:var(--danger);font-size:13px">Erreur de chargement.</div>';
+    });
+}
+</script>
+{% endblock %}

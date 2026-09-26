@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}{{ ind.nom }} – MonitorPro{% endblock %}
+{% block page_title %}{{ ind.nom }}{% endblock %}
+
+{% block content %}
+<!-- Résumé indicateur -->
+<div class="card">
+  <div class="card-body" style="padding:16px 20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:13px;color:var(--muted)">{{ ind.eq_nom }} &nbsp;›&nbsp; Unité : <strong>{{ ind.unite }}</strong></div>
+        <div style="font-size:13px;color:var(--muted)">{{ ind.description or '' }}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        {% if ind.eq_statut=='actif' %}<span class="badge badge-success">● Actif</span>
+        {% elif ind.eq_statut=='en panne' %}<span class="badge badge-danger">● En Panne</span>
+        {% else %}<span class="badge badge-secondary">Inactif</span>{% endif %}
+
+        {% if last_mesure %}
+        <div style="background:#f0f9ff;border-radius:8px;padding:8px 16px;text-align:center">
+          <div style="font-size:24px;font-weight:800;color:var(--primary)">{{ '%.2f'|format(last_mesure.valeur) }}</div>
+          <div style="font-size:11px;color:var(--muted)">{{ ind.unite }} — dernière valeur</div>
+          <div style="font-size:10px;color:var(--muted)">{{ last_mesure.horodatage[:16] }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Graphique -->
+  <div class="card">
+    <div class="card-header"><h3><i class="fas fa-chart-area"></i> Évolution</h3></div>
+    <div class="card-body"><div class="chart-box"><canvas id="indChart"></canvas></div></div>
+  </div>
+
+  <!-- Règles + Analyse -->
+  <div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><h3><i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i> Règles d'alerte</h3></div>
+      {% if regles %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Condition</th><th>Seuil</th><th>Niveau</th></tr></thead>
+          <tbody>
+          {% for r in regles %}
+          <tr>
+            <td><code>{{ {'GREATER_THAN':'>','LESS_THAN':'<','EQUALS':'='}.get(r.condition_op, r.condition_op) }}</code></td>
+            <td><strong>{{ r.seuil }}</strong> {{ ind.unite }}</td>
+            <td>{% if r.niveau=='CRITICAL' %}<span class="badge badge-danger">CRITICAL</span>
+                {% elif r.niveau=='WARNING' %}<span class="badge badge-warning">WARNING</span>
+                {% else %}<span class="badge badge-primary">INFO</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state" style="padding:16px"><i class="fas fa-check" style="font-size:20px;color:var(--success)"></i>Aucune règle</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3><i class="fas fa-search" style="color:var(--info)"></i> Détection Anomalies</h3></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('technicien.run_analyse', id_ind=ind.id_ind) }}" style="display:flex;gap:10px;margin-bottom:14px">
+          <select name="methode" class="form-control">
+            <option value="zscore">Z-Score</option>
+            <option value="isolation_forest">Isolation Forest</option>
+          </select>
+          <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap"><i class="fas fa-play"></i> Analyser</button>
+        </form>
+        {% for a in analyses %}
+        <div style="background:var(--card2);border-radius:6px;padding:10px;margin-bottom:8px;font-size:12px;border-left:3px solid var(--info)">
+          <strong>{{ a.methode }}</strong> — {{ a.resultat }}<br>
+          <span style="color:var(--muted)">{{ a.date_analyse[:16] }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Historique -->
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-history"></i> Historique des Mesures</h3>
+    <span style="font-size:13px;color:var(--muted)">{{ historique|length }} entrées</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Horodatage</th><th>Valeur</th><th>Unité</th></tr></thead>
+      <tbody>
+      {% for m in historique %}
+      <tr>
+        <td style="color:var(--muted);font-size:12px">{{ m.id_mesure }}</td>
+        <td>{{ m.horodatage[:19] }}</td>
+        <td><strong>{{ '%.2f'|format(m.valeur) }}</strong></td>
+        <td><span class="badge badge-primary">{{ m.unite }}</span></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var labels = {{ historique | map(attribute='horodatage') | list | tojson }};
+var values = {{ historique | map(attribute='valeur')     | list | tojson }};
+labels = labels.slice().reverse().map(l => l.slice(0,16));
+values = values.slice().reverse();
+new Chart(document.getElementById('indChart').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels: labels,
+    datasets: [{ label: '{{ ind.unite }}', data: values,
+      borderColor:'#1a56db', backgroundColor:'rgba(26,86,219,.07)',
+      fill:true, tension:.4, pointRadius:2 }]
+  },
+  options: { responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{ticks:{maxTicksLimit:8,font:{size:10}}},y:{ticks:{font:{size:10}}}} }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Saisir Mesure – MonitorPro{% endblock %}
+{% block page_title %}Saisir une Mesure{% endblock %}
+
+{% block content %}
+<div style="max-width:580px">
+  <div class="card">
+    <div class="card-header"><h3><i class="fas fa-plus-circle" style="color:var(--primary)"></i> Nouvelle Mesure</h3></div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('technicien.add_mesure') }}">
+        <div class="form-group">
+          <label class="form-label">Indicateur *</label>
+          <select name="id_ind" id="ind_sel" class="form-control" required onchange="updateInfo()">
+            <option value="">-- Sélectionner un indicateur --</option>
+            {% for ind in inds %}
+            <option value="{{ ind.id_ind }}"
+                    data-unite="{{ ind.unite }}"
+                    data-eq="{{ ind.eq_nom }}"
+                    data-desc="{{ ind.description or '' }}">
+              {{ ind.eq_nom }} → {{ ind.nom }} ({{ ind.unite }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div id="ind-info" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;line-height:1.7">
+          <strong>Équipement :</strong> <span id="i-eq"></span><br>
+          <strong>Unité :</strong> <span id="i-unite"></span><br>
+          <span id="i-desc" style="color:var(--muted)"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Valeur <span id="unite-lbl" style="color:var(--muted)"></span> *</label>
+          <input type="number" name="valeur" class="form-control" step="0.01" required placeholder="Ex : 72.5">
+        </div>
+
+        <div style="background:var(--warning-dim);border-radius:8px;padding:11px 14px;margin-bottom:20px;font-size:13px;color:var(--warning)">
+          <i class="fas fa-robot"></i>
+          Le système vérifiera automatiquement les règles d'alerte après l'enregistrement.
+        </div>
+
+        <div style="display:flex;gap:10px">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Enregistrer</button>
+          <a href="{{ url_for('dashboard.index') }}" class="btn btn-secondary">Annuler</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateInfo() {
+  var sel  = document.getElementById('ind_sel');
+  var opt  = sel.options[sel.selectedIndex];
+  var box  = document.getElementById('ind-info');
+  if (opt.value) {
+    document.getElementById('i-eq').textContent    = opt.dataset.eq;
+    document.getElementById('i-unite').textContent = opt.dataset.unite;
+    document.getElementById('i-desc').textContent  = opt.dataset.desc;
+    document.getElementById('unite-lbl').textContent = '(' + opt.dataset.unite + ')';
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+    document.getElementById('unite-lbl').textContent = '';
+  }
+}
+</script>
+{% endblock %}

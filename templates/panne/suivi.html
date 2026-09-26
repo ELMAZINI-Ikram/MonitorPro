@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block title %}Suivi des Pannes{% endblock %}
+{% block page_title %}Suivi des Pannes{% endblock %}
+
+{% block content %}
+
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+  <a href="{{ url_for('panne.signaler') }}" class="btn btn-danger">
+    <i class="fas fa-plus"></i> Signaler une Panne
+  </a>
+</div>
+
+{% if pannes %}
+{% for p in pannes %}
+
+{# Couleur selon statut #}
+{% if p.statut_reparation == 'resolu' %}
+  {% set border_color = '#16a34a' %}
+  {% set bg_color = '#f0fdf4' %}
+{% elif p.statut_reparation == 'en_reparation' %}
+  {% set border_color = '#0891b2' %}
+  {% set bg_color = '#f0f9ff' %}
+{% elif p.statut_reparation == 'inspection' %}
+  {% set border_color = '#d97706' %}
+  {% set bg_color = '#fffbeb' %}
+{% elif p.statut_reparation == 'en_cours' or p.statut_reparation == 'en_travail' %}
+  {% set border_color = '#d97706' %}
+  {% set bg_color = '#fffbeb' %}
+{% else %}
+  {% set border_color = '#dc2626' %}
+  {% set bg_color = '#fff5f5' %}
+{% endif %}
+
+<div style="background:{{ bg_color }};border:1.5px solid {{ border_color }};border-radius:12px;padding:0;margin-bottom:18px;overflow:hidden">
+
+  <!-- En-tête panne -->
+  <div style="background:{{ border_color }};padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div style="color:#fff;font-weight:700;font-size:15px">
+      <i class="fas fa-cog"></i> {{ p.eq_nom }}
+      <span style="font-weight:400;font-size:13px;opacity:.85">— {{ p.eq_type }}{% if p.localisation %} | {{ p.localisation }}{% endif %}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      {% if p.statut_reparation == 'resolu' %}
+        <span style="background:var(--card);color:#16a34a;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">✅ RÉSOLU</span>
+      {% elif p.statut_reparation == 'en_reparation' %}
+        <span style="background:var(--card);color:#0891b2;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">🔧 EN RÉPARATION</span>
+      {% elif p.statut_reparation == 'inspection' %}
+        <span style="background:var(--card);color:#d97706;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">🔵 INSPECTION</span>
+      {% elif p.statut_reparation in ('en_cours','en_travail') %}
+        <span style="background:var(--card);color:#d97706;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">⏳ EN COURS</span>
+      {% else %}
+        <span style="background:var(--card);color:#dc2626;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">🔴 EN ATTENTE</span>
+      {% endif %}
+      <a href="{{ url_for('panne.detail', panne_id=p.id) }}" style="background:rgba(255,255,255,.2);color:#fff;padding:3px 12px;border-radius:6px;font-size:12px;text-decoration:none">
+        <i class="fas fa-eye"></i> Détail
+      </a>
+    </div>
+  </div>
+
+  <!-- Corps timeline 4 étapes -->
+  <div style="padding:18px 20px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px">
+
+      <!-- Étape 1 : Panne signalée -->
+      <div style="background:var(--card);border-radius:8px;padding:14px;border-left:4px solid #dc2626">
+        <div style="font-size:11px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+          <i class="fas fa-exclamation-circle"></i> Étape 1 — Signalement
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">{{ p.date_panne[:16] }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">
+          par <strong>{{ p.signale_nom }}</strong>
+        </div>
+        {% if p.message_tech and p.message_tech.startswith('[AUTOMATIQUE]') %}
+        <div style="font-size:11px;color:#ef4444;margin-top:5px;font-style:italic">⚡ Détection automatique</div>
+        {% elif p.message_tech %}
+        <div style="font-size:12px;color:var(--text2);margin-top:5px">{{ p.message_tech[:80] }}</div>
+        {% endif %}
+      </div>
+
+      <!-- Étape 2 : Accusé réception (Responsable) -->
+      <div style="background:var(--card);border-radius:8px;padding:14px;border-left:4px solid {% if p.date_accusation %}#d97706{% else %}#e2e8f0{% endif %}">
+        <div style="font-size:11px;font-weight:700;color:{% if p.date_accusation %}#d97706{% else %}#94a3b8{% endif %};text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+          <i class="fas fa-check-double"></i> Étape 2 — Accusation
+        </div>
+        {% if p.date_accusation %}
+        <div style="font-size:13px;font-weight:700;color:var(--text)">{{ p.date_accusation[:16] }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">par <strong>{{ p.accuse_nom }}</strong></div>
+        {% else %}
+        <div style="font-size:12px;color:#94a3b8;font-style:italic">En attente de prise en charge…</div>
+        {% if not p.date_resolution %}
+        <form method="POST" action="{{ url_for('panne.accuser_reception', panne_id=p.id) }}" style="margin-top:8px">
+          <button type="submit" style="background:#d97706;color:#fff;border:none;border-radius:5px;padding:5px 12px;font-size:11px;cursor:pointer;font-weight:700">
+            <i class="fas fa-hand-paper"></i> Prendre en charge
+          </button>
+        </form>
+        {% endif %}
+        {% endif %}
+      </div>
+
+      <!-- Étape 3 : Réparation (info seulement pour suivi) -->
+      <div style="background:var(--card);border-radius:8px;padding:14px;border-left:4px solid {% if p.statut_reparation in ('en_reparation','resolu') %}#0891b2{% else %}#e2e8f0{% endif %}">
+        <div style="font-size:11px;font-weight:700;color:{% if p.statut_reparation in ('en_reparation','resolu') %}#0891b2{% else %}#94a3b8{% endif %};text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+          <i class="fas fa-wrench"></i> Étape 3 — Réparation
+        </div>
+        {% if p.statut_reparation in ('en_reparation','resolu') %}
+        <div style="font-size:12px;color:var(--text)">Intervention en cours / effectuée</div>
+        {% if p.message_tech and not p.message_tech.startswith('[AUTOMATIQUE]') %}
+        <div style="font-size:12px;color:var(--muted);margin-top:3px;font-style:italic">{{ p.message_tech[:80] }}</div>
+        {% endif %}
+        {% else %}
+        <div style="font-size:12px;color:#94a3b8;font-style:italic">En attente du technicien…</div>
+        {% endif %}
+      </div>
+
+      <!-- Étape 4 : Clôture (Responsable) -->
+      <div style="background:var(--card);border-radius:8px;padding:14px;border-left:4px solid {% if p.date_resolution %}#16a34a{% else %}#e2e8f0{% endif %}">
+        <div style="font-size:11px;font-weight:700;color:{% if p.date_resolution %}#16a34a{% else %}#94a3b8{% endif %};text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+          <i class="fas fa-check-circle"></i> Étape 4 — Clôture
+        </div>
+        {% if p.date_resolution %}
+        <div style="font-size:13px;font-weight:700;color:var(--text)">{{ p.date_resolution[:16] }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">par <strong>{{ p.resolu_nom }}</strong></div>
+        {% else %}
+        <div style="font-size:12px;color:#94a3b8;font-style:italic">Non clôturée…</div>
+        {% if p.statut_reparation in ('en_reparation','en_cours','en_travail','inspection') %}
+        <form method="POST" action="{{ url_for('panne.cloturer', panne_id=p.id) }}" style="margin-top:8px"
+              onsubmit="return confirm('Confirmer la clôture de cette panne ?')">
+          <button type="submit" style="background:#16a34a;color:#fff;border:none;border-radius:5px;padding:5px 12px;font-size:11px;cursor:pointer;font-weight:700">
+            <i class="fas fa-flag-checkered"></i> Clôturer
+          </button>
+        </form>
+        {% endif %}
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endfor %}
+
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <i class="fas fa-check-circle" style="color:var(--success)"></i>
+    Aucune panne enregistrée.
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

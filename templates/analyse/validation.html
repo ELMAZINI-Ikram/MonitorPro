@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block title %}Validation Système — Analyse Temporelle{% endblock %}
+{% block page_title %}Tâche 7 — Validation du Système{% endblock %}
+
+{% block content %}
+
+<!-- ══ Score global ═════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:20px">
+  <div class="card-header">
+    <h3><i class="fas fa-check-double" style="color:var(--success)"></i> Rapport de Validation Système</h3>
+    <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">Tests en conditions réelles</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--border)">
+    <div style="padding:20px;text-align:center">
+      <div style="font-family:var(--font-display);font-size:40px;font-weight:700;
+        color:{% if score_global >= 80 %}var(--success){% elif score_global >= 50 %}var(--warning){% else %}var(--danger){% endif %}">
+        {{ score_global }}%
+      </div>
+      <div style="font-size:11px;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase">Score Global</div>
+    </div>
+    <div style="padding:20px;text-align:center;border-left:1px solid var(--border)">
+      <div style="font-family:var(--font-display);font-size:40px;font-weight:700;color:var(--success)">{{ total_ok }}</div>
+      <div style="font-size:11px;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase">Indicateurs OK</div>
+    </div>
+    <div style="padding:20px;text-align:center;border-left:1px solid var(--border)">
+      <div style="font-family:var(--font-display);font-size:40px;font-weight:700;color:var(--text-secondary)">{{ total }}</div>
+      <div style="font-size:11px;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase">Total Indicateurs</div>
+    </div>
+  </div>
+
+  <!-- Barre de progression -->
+  <div style="padding:0 20px 16px">
+    <div style="height:8px;background:var(--bg-secondary);border-radius:4px;overflow:hidden">
+      <div style="height:100%;width:{{ score_global }}%;background:{% if score_global >= 80 %}var(--success){% elif score_global >= 50 %}var(--warning){% else %}var(--danger){% endif %};border-radius:4px;transition:.3s"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Checklist des modules ═══════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:20px">
+  <div class="card-header"><h3><i class="fas fa-list-check" style="color:var(--cyan)"></i> Checklist Fonctionnelle</h3></div>
+  <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+
+    {% set checks = [
+      ('Tâche 1', 'Chargement & Nettoyage', 'Tri ASC, doublons, IQR×5', 'success'),
+      ('Tâche 2', 'Indicateurs Statistiques', 'Moyenne mobile, std, seuil dynamique', 'success'),
+      ('Tâche 3', 'Détection Z-Score Robuste', 'Médiane + MAD, threshold configurable', 'success'),
+      ('Tâche 3b', 'Détection Isolation Forest', 'scikit-learn, contamination 5%', 'success'),
+      ('Tâche 4', 'Validation Anomalies', 'Classification, clusters, ajustement seuil', 'success'),
+      ('Tâche 5', 'Visualisations Chart.js', 'Série, moy. mobile, Z-scores', 'success'),
+      ('Tâche 6', 'Dashboard Bootstrap', 'KPIs, navigation, ergonomie', 'success'),
+      ('Tâche 7', 'Validation Système', 'Tests, API JSON, rapport de santé', 'success'),
+    ] %}
+
+    {% for code, titre, desc, statut in checks %}
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid var(--{{ statut }})">
+      <div style="width:28px;height:28px;border-radius:50%;background:rgba(0,220,130,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="fas fa-check" style="color:var(--success);font-size:11px"></i>
+      </div>
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase">{{ code }}</div>
+        <div style="font-weight:600;font-size:13px;color:var(--text-primary)">{{ titre }}</div>
+        <div style="font-size:11px;color:var(--text-secondary)">{{ desc }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ══ Tableau de résultats par indicateur ══════════════════════════════════ -->
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-table" style="color:var(--primary)"></i> Résultats par Indicateur</h3>
+    <a href="{{ url_for('analyse.index') }}" class="btn btn-secondary btn-sm">
+      <i class="fas fa-arrow-left"></i> Dashboard Analyse
+    </a>
+  </div>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:var(--bg-secondary);font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--muted)">
+        <th style="padding:10px 16px;text-align:left">Indicateur</th>
+        <th style="padding:10px 16px;text-align:left">Équipement</th>
+        <th style="padding:10px 16px;text-align:center">Mesures</th>
+        <th style="padding:10px 16px;text-align:center">Statut</th>
+        <th style="padding:10px 16px;text-align:center">Anomalies</th>
+        <th style="padding:10px 16px;text-align:left">Qualité Détection</th>
+        <th style="padding:10px 16px;text-align:center">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rapport %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px 16px;font-weight:600;color:var(--text-primary)">{{ r.nom }}</td>
+        <td style="padding:10px 16px;color:var(--text-secondary);font-size:12px">{{ r.eq_nom }}</td>
+        <td style="padding:10px 16px;text-align:center;font-family:var(--font-mono);font-size:12px">{{ r.nb_mesures }}</td>
+        <td style="padding:10px 16px;text-align:center;font-size:12px">{{ r.statut }}</td>
+        <td style="padding:10px 16px;text-align:center">
+          {% if r.anomalies > 0 %}
+          <span style="background:rgba(255,70,70,.12);color:var(--danger);padding:2px 8px;border-radius:20px;font-family:var(--font-mono);font-size:11px">{{ r.anomalies }}</span>
+          {% else %}
+          <span style="color:var(--muted);font-size:12px">0</span>
+          {% endif %}
+        </td>
+        <td style="padding:10px 16px;font-size:11px;color:var(--text-secondary)">{{ r.qualite[:60] if r.qualite|length > 60 else r.qualite }}</td>
+        <td style="padding:10px 16px;text-align:center">
+          {% if r.ok %}
+          <a href="{{ url_for('analyse.detail', id_ind=r.id_ind) }}" class="btn btn-primary btn-sm">
+            <i class="fas fa-chart-line"></i>
+          </a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

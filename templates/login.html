@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MonitorPro — Connexion</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body{ min-height:100vh; display:flex; align-items:center; justify-content:center; }
+
+    /* Animated scan lines */
+    body::before{ background-image:repeating-linear-gradient(0deg,rgba(0,212,255,.025) 0px,rgba(0,212,255,.025) 1px,transparent 1px,transparent 40px); background-size:100% 40px; }
+
+    .login-wrap { width:100%; max-width:400px; padding:20px; position:relative; z-index:1; animation:fade-up .4s cubic-bezier(.4,0,.2,1); }
+
+    .login-card {
+      background:var(--card2); border:1px solid var(--border2);
+      border-radius:12px; padding:38px 36px 32px;
+      box-shadow:0 0 60px rgba(0,0,0,.5), 0 0 120px rgba(0,212,255,.04);
+      position:relative; overflow:hidden;
+    }
+
+    /* Top glow line */
+    .login-card::before {
+      content:''; position:absolute;
+      top:0; left:0; right:0; height:1px;
+      background:linear-gradient(90deg, transparent 5%, var(--cyan) 40%, var(--primary) 65%, transparent 95%);
+    }
+
+    /* Corner decorations */
+    .login-card::after {
+      content:''; position:absolute;
+      bottom:-1px; right:-1px; width:40px; height:40px;
+      border-right:1px solid rgba(0,212,255,.2); border-bottom:1px solid rgba(0,212,255,.2);
+      border-radius:0 0 12px 0; pointer-events:none;
+    }
+
+    .login-logo { text-align:center; margin-bottom:30px; }
+
+    .logo-icon {
+      width:54px; height:54px;
+      background:var(--cyan-dim); border:1px solid rgba(0,212,255,.3);
+      border-radius:10px; display:flex; align-items:center; justify-content:center;
+      font-size:22px; color:var(--cyan); margin:0 auto 14px;
+      box-shadow:0 0 30px rgba(0,212,255,.15);
+    }
+
+    .login-logo h1 {
+      font-family:'Oxanium',sans-serif; font-size:22px; font-weight:800;
+      letter-spacing:.15em; text-transform:uppercase; color:var(--text);
+    }
+
+    .login-logo p {
+      font-size:10px; color:var(--muted); letter-spacing:.14em;
+      text-transform:uppercase; margin-top:5px; font-family:'JetBrains Mono',monospace;
+    }
+
+    .fg { margin-bottom:14px; }
+
+    .fg label {
+      display:block; font-size:10.5px; font-weight:700; margin-bottom:6px;
+      color:var(--text2); text-transform:uppercase; letter-spacing:.1em;
+      font-family:'JetBrains Mono',monospace;
+    }
+
+    .iw { position:relative; }
+    .iw i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:13px; }
+
+    .iw input {
+      width:100%; padding:10px 12px 10px 36px;
+      border:1px solid var(--border2); border-radius:5px;
+      font-size:13.5px; background:var(--bg3); color:var(--text);
+      transition:all .18s; font-family:'DM Sans',sans-serif;
+    }
+    .iw input:focus {
+      outline:none; border-color:var(--cyan);
+      background:var(--card); box-shadow:0 0 0 3px rgba(0,212,255,.1);
+    }
+    .iw input::placeholder { color:var(--muted); font-size:12.5px; }
+    #password { padding-right:36px; }
+
+    .login-btn {
+      width:100%; padding:11px;
+      background:linear-gradient(90deg, var(--cyan), var(--primary));
+      color:var(--bg); border:none; border-radius:5px;
+      font-size:13.5px; font-weight:700; cursor:pointer; margin-top:10px;
+      transition:all .2s; letter-spacing:.05em; font-family:'Oxanium',sans-serif;
+      text-transform:uppercase;
+      box-shadow:0 4px 20px rgba(0,212,255,.2);
+    }
+    .login-btn:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(0,212,255,.3); filter:brightness(1.08); }
+    .login-btn i { margin-right:6px; }
+
+    .demo-box {
+      background:var(--bg3); border:1px solid var(--border);
+      border-radius:6px; padding:13px 14px; margin-top:20px;
+    }
+    .demo-box h4 {
+      font-size:10px; font-weight:700; color:var(--muted);
+      text-transform:uppercase; letter-spacing:.12em; margin-bottom:9px;
+      font-family:'JetBrains Mono',monospace;
+    }
+    .demo-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:12px; color:var(--text2); }
+    .demo-row:last-child { margin-bottom:0; }
+    .demo-role { font-family:'Oxanium',sans-serif; font-weight:700; font-size:11px; letter-spacing:.04em; }
+    .role-admin { color:var(--danger); }
+    .role-resp  { color:var(--warning); }
+    .role-tech  { color:var(--success); }
+    .demo-row code { font-size:10.5px; padding:1px 5px; }
+
+    .alert { margin-bottom:14px; }
+  </style>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-icon"><i class="fas fa-industry"></i></div>
+      <h1>MonitorPro</h1>
+      <p>Plateforme de Supervision Industrielle</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}"><i class="fas fa-info-circle"></i> {{ msg }}</div>
+    {% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('auth.login') }}">
+      <div class="fg">
+        <label>Adresse Email</label>
+        <div class="iw"><i class="fas fa-at"></i><input type="email" name="email" placeholder="votre.email@domaine.com" required autocomplete="email"></div>
+      </div>
+      <div class="fg">
+        <label>Mot de passe</label>
+        <div class="iw"><i class="fas fa-key"></i><input type="password" name="password" id="password" placeholder="••••••••" required autocomplete="current-password"><i class="fas fa-eye" id="toggle-pwd" style="left:auto;right:12px;cursor:pointer;transition:color .18s;" onclick="var i=document.getElementById('password');var t=document.getElementById('toggle-pwd');if(i.type==='password'){i.type='text';t.className='fas fa-eye-slash';t.style.color='var(--cyan)';}else{i.type='password';t.className='fas fa-eye';t.style.color='';}" title="Afficher / Masquer"></i></div>
+      </div>
+      <button type="submit" class="login-btn" id="login-btn"><i class="fas fa-sign-in-alt" id="login-icon"></i><span id="login-text">Accéder au système</span></button>
+    </form>
+
+    <div class="demo-box">
+      <h4><i class="fas fa-shield-alt"></i> &nbsp;Authentification sécurisée</h4>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--font-mono)">
+        Un code de vérification sera envoyé à votre adresse email après la connexion.
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.querySelector("form").addEventListener("submit", function() {
+  var btn = document.getElementById("login-btn");
+  var icon = document.getElementById("login-icon");
+  var txt = document.getElementById("login-text");
+  if(btn) {
+    btn.disabled = true;
+    if(icon) icon.className = "fas fa-circle-notch fa-spin";
+    if(txt) txt.textContent = "Vérification en cours…";
+  }
+});
+</script>
+</body>
+</html>

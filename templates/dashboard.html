@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — MonitorPro{% endblock %}
+{% block page_title %}Tableau de Bord{% endblock %}
+
+{% block content %}
+
+<!-- ── KPI Grid ──────────────────────────────────────────────────── -->
+<div class="stats-grid">
+  <div class="stat-card sc-cyan">
+    <div class="stat-icon si-cyan"><i class="fas fa-microchip"></i></div>
+    <div>
+      <div class="stat-label">Équipements</div>
+      <div class="stat-value" style="color:var(--cyan)">{{ total_eq }}</div>
+    </div>
+  </div>
+  <div class="stat-card sc-green">
+    <div class="stat-icon si-green"><i class="fas fa-signal"></i></div>
+    <div>
+      <div class="stat-label">En Ligne</div>
+      <div class="stat-value" style="color:var(--success)">{{ actifs }}</div>
+    </div>
+  </div>
+  <div class="stat-card sc-red">
+    <div class="stat-icon si-red"><i class="fas fa-exclamation-triangle"></i></div>
+    <div>
+      <div class="stat-label">En Panne</div>
+      <div class="stat-value" style="color:var(--danger)">{{ pannes }}</div>
+    </div>
+  </div>
+  <div class="stat-card sc-yellow">
+    <div class="stat-icon si-yellow"><i class="fas fa-bell"></i></div>
+    <div>
+      <div class="stat-label">Alertes</div>
+      <div class="stat-value" style="color:var(--warning)">{{ alertes_open }}</div>
+      {% if alertes_crit > 0 %}
+      <div style="font-size:10px;color:var(--danger);font-family:var(--font-mono);margin-top:2px">
+        <i class="fas fa-radiation" style="font-size:9px"></i> {{ alertes_crit }} critique{{ 's' if alertes_crit > 1 }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="stat-card sc-blue">
+    <div class="stat-icon si-blue"><i class="fas fa-database"></i></div>
+    <div>
+      <div class="stat-label">Mesures</div>
+      <div class="stat-value" style="color:var(--primary)">{{ total_mesures }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Fiabilité (Admin/Responsable) ─────────────────────────────── -->
+{% if session.user_role in ['ADMIN','RESPONSABLE'] %}
+<div class="card" style="margin-bottom:18px">
+  <div class="card-header">
+    <h3><i class="fas fa-heartbeat"></i> Fiabilité en Temps Réel</h3>
+    <a href="{{ url_for('fiabilite.index') }}" class="btn btn-outline-cyan btn-sm">
+      <i class="fas fa-chart-bar"></i> Rapport Complet
+    </a>
+  </div>
+
+  <!-- Loading -->
+  <div id="fi-loading" style="padding:22px;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12px">
+    <i class="fas fa-spinner fa-spin" style="color:var(--cyan);margin-right:8px"></i>Calcul MTBF / MTTR...
+  </div>
+
+  <div id="fi-content" style="display:none">
+    <!-- KPI trio -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--border)">
+      <div style="padding:16px 20px;border-right:1px solid var(--border);text-align:center">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Score Santé</div>
+        <div id="fi-score" style="font-family:var(--font-display);font-size:26px;font-weight:700;color:var(--cyan)">—</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">/ 100</div>
+      </div>
+      <div style="padding:16px 20px;border-right:1px solid var(--border);text-align:center">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Disponibilité Moy.</div>
+        <div id="fi-dispo" style="font-family:var(--font-display);font-size:26px;font-weight:700;color:var(--success)">—</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">% uptime</div>
+      </div>
+      <div style="padding:16px 20px;text-align:center">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Équip. Critiques</div>
+        <div id="fi-critical" style="font-family:var(--font-display);font-size:26px;font-weight:700;color:var(--danger)">—</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">score &lt; 70</div>
+      </div>
+    </div>
+
+    <!-- Tableau fiabilité -->
+    <div style="border-top:1px solid var(--border);overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Équipement</th>
+            <th style="text-align:center">Score Santé</th>
+            <th style="text-align:center">MTBF</th>
+            <th style="text-align:center">MTTR</th>
+            <th style="text-align:center">Disponibilité</th>
+            <th style="text-align:center">Pannes</th>
+          </tr>
+        </thead>
+        <tbody id="fi-rows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Bottom grid ───────────────────────────────────────────────── -->
+<div class="grid-2">
+
+  <!-- Alertes récentes -->
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fas fa-bell" style="color:var(--warning)"></i> Alertes Récentes</h3>
+      <a href="{{ url_for('responsable.alertes') }}" class="btn btn-secondary btn-sm">Voir tout</a>
+    </div>
+    {% if recent_alerts %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Niv.</th><th>Équipement</th><th>Message</th><th>Heure</th></tr></thead>
+        <tbody>
+        {% for a in recent_alerts %}
+        <tr>
+          <td>
+            {% if a.niveau=='CRITICAL' %}<span class="badge badge-danger">CRIT</span>
+            {% elif a.niveau=='WARNING' %}<span class="badge badge-warning">WARN</span>
+            {% else %}<span class="badge badge-info">INFO</span>{% endif %}
+          </td>
+          <td style="font-weight:600">{{ a.eq_nom or '–' }}</td>
+          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);font-size:12px">{{ a.message }}</td>
+          <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">{{ a.date_creation[11:16] }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="fas fa-check-circle" style="color:var(--success);opacity:1"></i>
+      Système nominal — Aucune alerte
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- État équipements -->
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fas fa-microchip"></i> État des Équipements</h3>
+      <a href="{{ url_for('shared.equipements') }}" class="btn btn-secondary btn-sm">Détails</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Équipement</th><th>Type</th><th>Statut</th></tr></thead>
+        <tbody>
+        {% for eq in equips %}
+        <tr>
+          <td>
+            <div style="font-weight:600">{{ eq.nom }}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">{{ eq.localisation or 'N/A' }}</div>
+          </td>
+          <td style="color:var(--text2);font-size:12px">{{ eq.type }}</td>
+          <td>
+            {% if eq.statut=='actif' %}
+            <span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--success)">
+              <span class="dot dot-green"></span>Actif
+            </span>
+            {% elif eq.statut=='en panne' %}
+            <span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--danger)">
+              <span class="dot dot-red"></span>En Panne
+            </span>
+            {% else %}
+            <span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted)">
+              <span class="dot dot-grey"></span>Inactif
+            </span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Graphique ─────────────────────────────────────────────────── -->
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-chart-line"></i> Évolution des Mesures</h3>
+    <select id="ind-sel" class="form-control" style="width:220px" onchange="loadChart(this.value)">
+      {% for ind in indicators %}
+      <option value="{{ ind.id_ind }}" data-unite="{{ ind.unite }}">{{ ind.nom }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="card-body">
+    <div class="chart-box" style="height:250px"><canvas id="mainChart"></canvas></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Main Chart ───────────────────────────────────────────────────
+var chart = null;
+function loadChart(indId) {
+  fetch('/api/chart/' + indId)
+    .then(r => r.json())
+    .then(d => {
+      var ctx = document.getElementById('mainChart').getContext('2d');
+      if (chart) chart.destroy();
+
+      // Gradient fill
+      const gradient = ctx.createLinearGradient(0, 0, 0, 250);
+      gradient.addColorStop(0, 'rgba(0,212,255,.18)');
+      gradient.addColorStop(1, 'rgba(0,212,255,.01)');
+
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: d.labels,
+          datasets: [{
+            label: d.unite,
+            data: d.values,
+            borderColor: '#00d4ff',
+            backgroundColor: gradient,
+            fill: true, tension: .35,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointHoverBackgroundColor: '#00d4ff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(14,21,32,.95)',
+              borderColor: '#1a2540',
+              borderWidth: 1,
+              titleFont: { family: "'JetBrains Mono'" },
+              bodyFont:  { family: "'JetBrains Mono'" },
+              callbacks: {
+                label: ctx => ' ' + ctx.parsed.y.toFixed(2) + ' ' + d.unite
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { maxTicksLimit: 10, color: '#3d5270' },
+              grid: { color: 'rgba(26,37,64,.6)' }
+            },
+            y: {
+              ticks: { color: '#3d5270' },
+              grid: { color: 'rgba(26,37,64,.6)' }
+            }
+          }
+        }
+      });
+    });
+}
+var sel = document.getElementById('ind-sel');
+if (sel) loadChart(sel.value);
+
+// ── Fiabilité KPIs ───────────────────────────────────────────────
+{% if session.user_role in ['ADMIN','RESPONSABLE'] %}
+fetch('/fiabilite/api/global')
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('fi-loading').style.display = 'none';
+    document.getElementById('fi-content').style.display = 'block';
+
+    const critiques = d.equipements.filter(e => e.score < 70).length;
+    const sc = d.score_moyen;
+
+    document.getElementById('fi-dispo').textContent     = d.dispo_moyenne + '%';
+    document.getElementById('fi-critical').textContent  = critiques;
+    document.getElementById('fi-score').textContent     = sc;
+    document.getElementById('fi-score').style.color     = sc >= 90 ? 'var(--success)' : sc >= 70 ? 'var(--warning)' : 'var(--danger)';
+
+    const tbody = document.getElementById('fi-rows');
+    d.equipements.sort((a,b) => a.score - b.score).forEach(eq => {
+      const sc = eq.score;
+      const scColor = sc >= 90 ? 'var(--success)' : sc >= 70 ? 'var(--warning)' : 'var(--danger)';
+      const scBg    = sc >= 90 ? 'rgba(0,229,160,.12)' : sc >= 70 ? 'rgba(255,182,39,.12)' : 'rgba(255,61,90,.12)';
+      const scBord  = sc >= 90 ? 'rgba(0,229,160,.3)'  : sc >= 70 ? 'rgba(255,182,39,.3)'  : 'rgba(255,61,90,.3)';
+      const dispo   = eq.disponibilite || 100;
+      const dcol    = dispo >= 95 ? 'var(--success)' : dispo >= 85 ? 'var(--warning)' : 'var(--danger)';
+      tbody.innerHTML += `
+        <tr>
+          <td style="font-weight:600">${eq.nom}</td>
+          <td style="text-align:center">
+            <span style="background:${scBg};color:${scColor};border:1px solid ${scBord};padding:2px 10px;border-radius:3px;font-family:var(--font-mono);font-size:11px;font-weight:700">${sc}/100</span>
+          </td>
+          <td style="text-align:center;font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--primary)">${eq.mtbf ? eq.mtbf + 'h' : '<span style="color:var(--muted)">—</span>'}</td>
+          <td style="text-align:center;font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--warning)">${eq.mttr ? eq.mttr + 'h' : '<span style="color:var(--muted)">—</span>'}</td>
+          <td style="text-align:center;font-family:var(--font-mono);font-size:13px;font-weight:700;color:${dcol}">${dispo}%</td>
+          <td style="text-align:center;font-family:var(--font-display);font-size:17px;font-weight:700;color:${eq.nb_pannes === 0 ? 'var(--success)' : 'var(--danger)'}">${eq.nb_pannes}</td>
+        </tr>`;
+    });
+  })
+  .catch(() => {
+    document.getElementById('fi-loading').innerHTML = '<span style="color:var(--muted);font-family:var(--font-mono);font-size:12px">Aucune donnée de fiabilité disponible.</span>';
+  });
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,50 @@
+# ══════════════════════════════════════════════════════════════════
+#  MonitorPro — .gitignore
+# ══════════════════════════════════════════════════════════════════
+
+# Secrets — NE JAMAIS committer
+.env
+
+# Base de données SQLite locale
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Environnements virtuels
+venv/
+.venv/
+env/
+ENV/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

@@ -1,0 +1,206 @@
+{% extends 'base.html' %}
+{% block title %}Utilisateurs – Admin{% endblock %}
+{% block page_title %}Gestion des Utilisateurs{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-users"></i> Utilisateurs ({{ users|length }})</h3>
+    <button class="btn btn-primary" onclick="openModal('addUser')">
+      <i class="fas fa-plus"></i> Ajouter
+    </button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Nom complet</th><th>Email</th>
+          <th>Rôle</th><th>Équipements</th><th>Créé le</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in users %}
+      <tr>
+        <td style="color:var(--muted)">#{{ u.id_utilisateur }}</td>
+        <td><strong>{{ u.prenom }} {{ u.nom }}</strong></td>
+        <td>{{ u.email }}</td>
+        <td>
+          {% if u.nom_role=='ADMIN' %}<span class="badge badge-danger">ADMIN</span>
+          {% elif u.nom_role=='RESPONSABLE' %}<span class="badge badge-warning">RESPONSABLE</span>
+          {% else %}<span class="badge badge-success">TECHNICIEN</span>{% endif %}
+        </td>
+        <td style="color:var(--muted);font-size:13px">{{ u.nb_equips }} équip.</td>
+        <td style="font-size:12px;color:var(--muted)">{{ u.date_creation[:10] if u.date_creation else '–' }}</td>
+        <td style="display:flex;gap:6px">
+          <!-- Bouton Modifier -->
+          <button class="btn btn-secondary btn-sm" title="Modifier"
+            onclick="openEditUser(
+              {{ u.id_utilisateur }},
+              '{{ u.nom|replace("'","\\'") }}',
+              '{{ u.prenom|replace("'","\\'") }}',
+              '{{ u.email }}',
+              {{ u.id_role }}
+            )">
+            <i class="fas fa-edit"></i>
+          </button>
+          <!-- Bouton Supprimer -->
+          {% if u.id_utilisateur != session.user_id %}
+          <form method="POST" action="{{ url_for('admin.delete_user', uid=u.id_utilisateur) }}"
+                style="display:inline"
+                onsubmit="return confirm('Supprimer {{ u.prenom }} {{ u.nom }} ?')">
+            <button type="submit" class="btn btn-danger btn-sm" title="Supprimer">
+              <i class="fas fa-trash"></i>
+            </button>
+          </form>
+          {% else %}
+          <span style="font-size:12px;color:var(--muted);padding:4px 8px">Vous</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL — AJOUTER UTILISATEUR
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="addUser">
+  <div class="modal">
+    <h3><i class="fas fa-user-plus" style="color:var(--primary)"></i> Nouvel Utilisateur</h3>
+    <form method="POST" action="{{ url_for('admin.add_user') }}">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Nom *</label>
+          <input type="text" name="nom" class="form-control" required
+                 placeholder="Ex : El Amrani" minlength="2" maxlength="100">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prénom *</label>
+          <input type="text" name="prenom" class="form-control" required
+                 placeholder="Ex : Sara" minlength="2" maxlength="100">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Adresse e-mail *</label>
+        <input type="email" name="email" class="form-control" required
+               placeholder="utilisateur@domaine.ma" maxlength="150">
+        <small style="color:var(--muted)">Doit être unique — sert d'identifiant de connexion</small>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mot de passe * <small style="color:var(--muted)">(min. 6 caractères)</small></label>
+        <input type="password" name="password" class="form-control" required minlength="6" maxlength="128">
+        <small style="color:var(--muted)">Stocké sous forme hachée (scrypt) — jamais en clair</small>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rôle *</label>
+        <select name="id_role" class="form-control" required>
+          {% for r in roles %}
+          <option value="{{ r.id_role }}">{{ r.nom_role }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Équipements assignés <small style="color:var(--muted)">(optionnel)</small></label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;background:var(--bg-card);border-radius:6px;border:1px solid var(--border)">
+          {% for eq in equips %}
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="checkbox" name="equip_ids" value="{{ eq.id_equipement }}">
+            {{ eq.nom }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('addUser')" class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL — MODIFIER UTILISATEUR
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="editUser">
+  <div class="modal">
+    <h3><i class="fas fa-user-edit" style="color:var(--primary)"></i> Modifier Utilisateur</h3>
+    <form method="POST" id="editUserForm">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Nom *</label>
+          <input type="text" name="nom" id="eu-nom" class="form-control" required minlength="2" maxlength="100">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prénom *</label>
+          <input type="text" name="prenom" id="eu-prenom" class="form-control" required minlength="2" maxlength="100">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Adresse e-mail *</label>
+        <input type="email" name="email" id="eu-email" class="form-control" required maxlength="150">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nouveau mot de passe <small style="color:var(--muted)">(laisser vide = inchangé)</small></label>
+        <input type="password" name="password" class="form-control" minlength="6" maxlength="128"
+               placeholder="Laisser vide pour ne pas modifier">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rôle *</label>
+        <select name="id_role" id="eu-role" class="form-control" required>
+          {% for r in roles %}
+          <option value="{{ r.id_role }}">{{ r.nom_role }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Équipements assignés</label>
+        <div id="eu-equips" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;background:var(--bg-card);border-radius:6px;border:1px solid var(--border)">
+          {% for eq in equips %}
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="checkbox" class="eu-eq-cb" name="equip_ids" value="{{ eq.id_equipement }}">
+            {{ eq.nom }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('editUser')" class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Équipements assignés par utilisateur (chargés depuis l'API)
+function openEditUser(uid, nom, prenom, email, idRole) {
+  document.getElementById('eu-nom').value    = nom;
+  document.getElementById('eu-prenom').value = prenom;
+  document.getElementById('eu-email').value  = email;
+  document.getElementById('eu-role').value   = idRole;
+  document.getElementById('editUserForm').action = '/admin/users/edit/' + uid;
+
+  // Décocher toutes les cases d'abord
+  document.querySelectorAll('.eu-eq-cb').forEach(cb => cb.checked = false);
+
+  // Charger les équipements déjà assignés et cocher les bonnes cases
+  fetch('/api/utilisateurs/' + uid + '/equipements')
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'success' && Array.isArray(data.data)) {
+        data.data.forEach(eid => {
+          const cb = document.querySelector('.eu-eq-cb[value="' + eid + '"]');
+          if (cb) cb.checked = true;
+        });
+      }
+    })
+    .catch(() => {});
+
+  openModal('editUser');
+}
+</script>
+{% endblock %}

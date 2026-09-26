@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+{% block title %}Fiabilité — {{ eq.nom }}{% endblock %}
+{% block page_title %}Fiche Fiabilité — {{ eq.nom }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.gauge-container { position:relative; width:160px; height:160px; margin:0 auto; }
+.gauge-container .gauge-value { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; }
+.gauge-value .val { font-size:32px; font-weight:800; line-height:1; }
+.gauge-value .lbl { font-size:12px; color:var(--muted); }
+.kpi-card { background:var(--card); border-radius:12px; padding:20px; border:1px solid var(--border); text-align:center; }
+.kpi-big { font-size:32px; font-weight:800; line-height:1; margin-bottom:4px; }
+.kpi-sub { font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; }
+.kpi-formula { font-size:11px; color:var(--muted); font-style:italic; margin-top:8px; padding:6px; background:var(--card2); border-radius:6px; }
+.timeline-item { display:flex; gap:16px; padding:12px 0; border-bottom:1px solid var(--border); }
+.timeline-dot { width:12px; height:12px; border-radius:50%; margin-top:4px; flex-shrink:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header équipement -->
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body" style="padding:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="width:56px;height:56px;background:var(--primary-dim);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px">
+          <i class="fas fa-cog" style="color:var(--primary)"></i>
+        </div>
+        <div>
+          <h2 style="font-size:20px;font-weight:800">{{ eq.nom }}</h2>
+          <div style="color:var(--muted);font-size:13px">{{ eq.type }} — {{ eq.localisation or 'Localisation N/A' }}</div>
+          <div style="margin-top:6px">
+            {% if eq.statut == 'actif' %}<span class="badge badge-success">● Actif</span>
+            {% elif eq.statut == 'en panne' %}<span class="badge badge-danger">● En Panne</span>
+            {% else %}<span class="badge badge-secondary">○ Inactif</span>{% endif %}
+            {% if eq.date_installation %}
+            <span style="font-size:12px;color:var(--muted);margin-left:12px"><i class="fas fa-calendar"></i> Installé le {{ eq.date_installation }}</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <a href="{{ url_for('fiabilite.kpis_mensuels', id_eq=eq.id_equipement) }}" class="btn btn-secondary btn-sm">
+          <i class="fas fa-calendar-alt"></i> Analyse mensuelle
+        </a>
+        <a href="{{ url_for('fiabilite.export_pdf', id_eq=eq.id_equipement) }}" class="btn btn-primary btn-sm">
+          <i class="fas fa-file-pdf"></i> Exporter PDF
+        </a>
+        <a href="{{ url_for('fiabilite.index') }}" class="btn btn-secondary btn-sm">
+          <i class="fas fa-arrow-left"></i> Retour
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Score de santé + KPIs MTBF/MTTR/Disponibilité -->
+<div style="display:grid;grid-template-columns:200px 1fr;gap:20px;margin-bottom:24px">
+
+  <!-- Jauge Score -->
+  <div class="card" style="display:flex;align-items:center;justify-content:center;padding:24px">
+    <div>
+      <div class="gauge-container">
+        <canvas id="gaugeChart" width="160" height="160"></canvas>
+        <div class="gauge-value">
+          <div class="val" style="color:{% if score >= 90 %}#16a34a{% elif score >= 70 %}#d97706{% else %}#dc2626{% endif %}">{{ score }}</div>
+          <div class="lbl">/ 100</div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:12px">
+        <div style="font-weight:700;font-size:14px">Score de Santé</div>
+        <div style="font-size:12px;color:var(--muted)">
+          {% if score >= 90 %}🟢 Excellent
+          {% elif score >= 70 %}🟡 Satisfaisant
+          {% elif score >= 50 %}🟠 À surveiller
+          {% else %}🔴 Critique{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+    <div class="kpi-card">
+      <div class="kpi-sub"><i class="fas fa-clock"></i> MTBF</div>
+      <div class="kpi-big" style="color:var(--primary)">
+        {% if kpis.mtbf %}{{ kpis.mtbf }}h{% else %}N/A{% endif %}
+      </div>
+      <div style="font-size:12px;color:var(--muted)">Mean Time Between Failures</div>
+      <div class="kpi-formula">Temps moyen entre pannes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-sub"><i class="fas fa-tools"></i> MTTR</div>
+      <div class="kpi-big" style="color:var(--warning)">
+        {% if kpis.mttr %}{{ kpis.mttr }}h{% else %}N/A{% endif %}
+      </div>
+      <div style="font-size:12px;color:var(--muted)">Mean Time To Repair</div>
+      <div class="kpi-formula">Durée moyenne de réparation</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-sub"><i class="fas fa-percent"></i> Disponibilité</div>
+      <div class="kpi-big" style="color:{% if (kpis.disponibilite or 100) >= 95 %}var(--success){% elif (kpis.disponibilite or 100) >= 85 %}var(--warning){% else %}var(--danger){% endif %}">
+        {{ kpis.disponibilite if kpis.disponibilite else '100' }}%
+      </div>
+      <div style="font-size:12px;color:var(--muted)">Taux de disponibilité</div>
+      <div class="kpi-formula">MTBF / (MTBF + MTTR)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-sub"><i class="fas fa-exclamation-circle"></i> Pannes Total</div>
+      <div class="kpi-big" style="color:{% if kpis.nb_pannes == 0 %}var(--success){% elif kpis.nb_pannes <= 2 %}var(--warning){% else %}var(--danger){% endif %}">
+        {{ kpis.nb_pannes }}
+      </div>
+      <div style="font-size:12px;color:var(--muted)">{{ kpis.pannes_resolues }} résolues</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-sub"><i class="fas fa-hourglass"></i> Temps Arrêt Total</div>
+      <div class="kpi-big" style="color:var(--danger)">{{ kpis.temps_total_panne_h }}h</div>
+      <div style="font-size:12px;color:var(--muted)">Durée cumulée des pannes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-sub"><i class="fas fa-chart-line"></i> Indicateurs</div>
+      <div class="kpi-big" style="color:var(--info)">{{ indicateurs|length }}</div>
+      <div style="font-size:12px;color:var(--muted)">Capteurs surveillés</div>
+    </div>
+  </div>
+</div>
+
+<!-- Graphiques -->
+<div class="grid-2" style="margin-bottom:24px">
+  <!-- Évolution score de santé 30 jours -->
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fas fa-heartbeat" style="color:var(--danger)"></i> Évolution Score de Santé (30 jours)</h3>
+    </div>
+    <div class="card-body"><div style="height:220px"><canvas id="chartSante"></canvas></div></div>
+  </div>
+
+  <!-- Répartition du temps -->
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fas fa-chart-pie" style="color:var(--primary)"></i> Répartition du Temps</h3>
+    </div>
+    <div class="card-body">
+      <div style="height:220px">
+        {% if kpis.nb_pannes > 0 and kpis.mtbf and kpis.mttr %}
+        <canvas id="chartRepartition"></canvas>
+        {% else %}
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;color:var(--success)">
+          <i class="fas fa-check-circle" style="font-size:48px;margin-bottom:12px"></i>
+          <div style="font-weight:700">Aucune panne enregistrée</div>
+          <div style="font-size:13px;color:var(--muted)">Disponibilité 100%</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Historique pannes -->
+<div class="card" style="margin-bottom:24px">
+  <div class="card-header">
+    <h3><i class="fas fa-history" style="color:var(--danger)"></i> Historique des Pannes ({{ pannes|length }})</h3>
+  </div>
+  {% if pannes %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Date Panne</th><th>Signalé par</th>
+          <th>Accusé le</th><th>Statut</th><th>Durée (h)</th><th>Résolu le</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in pannes %}
+      {% set duree = None %}
+      <tr>
+        <td style="color:var(--muted)">#{{ p.id }}</td>
+        <td>{{ p.date_panne[:16] }}</td>
+        <td>{{ p.signale_nom or '—' }}</td>
+        <td>{{ p.date_accusation[:16] if p.date_accusation else '—' }}</td>
+        <td>
+          {% if p.statut_reparation == 'resolu' %}<span class="badge badge-success">✓ Résolu</span>
+          {% elif p.statut_reparation == 'en_reparation' %}<span class="badge badge-warning">🔧 En réparation</span>
+          {% elif p.statut_reparation == 'en_inspection' %}<span class="badge badge-info">🔍 Inspection</span>
+          {% else %}<span class="badge badge-secondary">⏳ En attente</span>{% endif %}
+        </td>
+        <td>
+          {% if p.date_resolution and p.date_panne %}
+            <strong>
+            {{ ((p.date_resolution | string)[:19] | replace('T',' ') | replace('-','-')).__class__.__name__ }}
+            </strong>
+            — h
+          {% else %}<span style="color:var(--danger)">En cours</span>{% endif %}
+        </td>
+        <td>{{ p.date_resolution[:16] if p.date_resolution else '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body" style="text-align:center;padding:40px;color:var(--muted)">
+    <i class="fas fa-check-circle" style="font-size:40px;color:var(--success)"></i>
+    <div style="margin-top:12px;font-weight:600">Aucune panne enregistrée — Équipement fiable</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Indicateurs temps réel -->
+<div class="card" style="margin-bottom:24px">
+  <div class="card-header">
+    <h3><i class="fas fa-tachometer-alt" style="color:var(--primary)"></i> État des Indicateurs</h3>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Indicateur</th><th>Unité</th><th>Dernière Valeur</th><th>Nb Mesures</th><th>Dernière MAJ</th><th>Action</th></tr></thead>
+      <tbody>
+      {% for ind in indicateurs %}
+      <tr>
+        <td><strong>{{ ind.nom }}</strong><br><small style="color:var(--muted)">{{ ind.description or '' }}</small></td>
+        <td><span class="badge badge-info">{{ ind.unite }}</span></td>
+        <td>
+          {% if ind.last_val is not none %}
+          <strong style="font-size:16px">{{ "%.2f"|format(ind.last_val) }}</strong> {{ ind.unite }}
+          {% else %}<span style="color:var(--muted)">—</span>{% endif %}
+        </td>
+        <td>{{ ind.nb_mesures }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ ind.last_ts[:16] if ind.last_ts else '—' }}</td>
+        <td><a href="{{ url_for('technicien.view_indicateur', id_ind=ind.id_ind) }}" class="btn btn-secondary btn-sm"><i class="fas fa-chart-line"></i></a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Alertes récentes -->
+{% if alertes %}
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-bell" style="color:var(--warning)"></i> Alertes Récentes</h3>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Niveau</th><th>Message</th><th>Statut</th></tr></thead>
+      <tbody>
+      {% for a in alertes %}
+      <tr>
+        <td style="font-size:12px">{{ a.date_creation[:16] }}</td>
+        <td>
+          {% if a.niveau == 'CRITICAL' %}<span class="badge badge-danger">🔴 CRITICAL</span>
+          {% elif a.niveau == 'WARNING' %}<span class="badge badge-warning">🟡 WARNING</span>
+          {% else %}<span class="badge badge-info">🔵 INFO</span>{% endif %}
+        </td>
+        <td style="max-width:400px">{{ a.message }}</td>
+        <td>{% if a.resolue %}<span class="badge badge-success">✓ Résolue</span>{% else %}<span class="badge badge-warning">⏳ Ouverte</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Jauge score
+const score = {{ score }};
+const gaugeColor = score >= 90 ? '#16a34a' : score >= 70 ? '#d97706' : '#dc2626';
+const ctx = document.getElementById('gaugeChart').getContext('2d');
+new Chart(ctx, {
+  type: 'doughnut',
+  data: {
+    datasets: [{
+      data: [score, 100 - score],
+      backgroundColor: [gaugeColor, '#f1f5f9'],
+      borderWidth: 0
+    }]
+  },
+  options: {
+    responsive: false, cutout: '75%',
+    plugins: { legend: { display: false }, tooltip: { enabled: false } }
+  }
+});
+
+// Évolution score santé
+const histData = {{ historique_score | tojson }};
+new Chart(document.getElementById('chartSante').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels: histData.labels,
+    datasets: [{
+      label: 'Score',
+      data: histData.values,
+      borderColor: gaugeColor,
+      backgroundColor: gaugeColor + '18',
+      fill: true, tension: 0.4, pointRadius: 2,
+      borderWidth: 2
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { min: 0, max: 100, ticks: { callback: v => v + '/100' } },
+      x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } }
+    }
+  }
+});
+
+{% if kpis.mtbf and kpis.mttr %}
+// Répartition temps
+new Chart(document.getElementById('chartRepartition').getContext('2d'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Temps en service (MTBF)', 'Temps en réparation (MTTR)'],
+    datasets: [{
+      data: [{{ kpis.mtbf }}, {{ kpis.mttr }}],
+      backgroundColor: ['#16a34a', '#dc2626'],
+      borderWidth: 2
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { size: 11 } } },
+      tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + 'h' } }
+    }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

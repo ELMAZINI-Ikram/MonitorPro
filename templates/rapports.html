@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Rapports – MonitorPro{% endblock %}
+{% block page_title %}Rapports & Exports{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header"><h3><i class="fas fa-file-csv" style="color:var(--success)"></i> Export CSV</h3></div>
+    <div class="card-body">
+      <p style="color:var(--muted);font-size:14px;margin-bottom:18px">Exportez les mesures au format CSV, par équipement ou en totalité.</p>
+      <form method="GET" action="{{ url_for('shared.export_csv') }}">
+        <div class="form-group">
+          <label class="form-label">Équipement (optionnel)</label>
+          <select name="id_eq" class="form-control">
+            <option value="">Tous les équipements</option>
+            {% for eq in equips %}<option value="{{ eq.id_equipement }}">{{ eq.nom }}</option>{% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-success"><i class="fas fa-download"></i> Télécharger CSV</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3><i class="fas fa-file-pdf" style="color:var(--danger)"></i> Rapport PDF</h3></div>
+    <div class="card-body">
+      <p style="color:var(--muted);font-size:14px;margin-bottom:18px">Rapport complet : statistiques, alertes et état des équipements.</p>
+      <div style="background:var(--card2);border-radius:8px;padding:12px;margin-bottom:18px;font-size:13px">
+        ✅ Statistiques par équipement<br>
+        ✅ Liste des 50 dernières alertes<br>
+        ✅ Date et heure de génération
+      </div>
+      <a href="{{ url_for('shared.export_pdf') }}" class="btn btn-danger"><i class="fas fa-file-pdf"></i> Générer PDF</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

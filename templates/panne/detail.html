@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}Détail Panne – {{ panne.eq_nom }}{% endblock %}
+{% block page_title %}Fiche Panne : {{ panne.eq_nom }}{% endblock %}
+
+{% block content %}
+<div style="max-width:720px">
+
+  <!-- Statut global -->
+  <div class="card">
+    <div class="card-body" style="padding:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:20px;font-weight:800">{{ panne.eq_nom }}</div>
+          <div style="font-size:13px;color:var(--muted)">{{ panne.eq_type }}{% if panne.localisation %} — {{ panne.localisation }}{% endif %}</div>
+        </div>
+        {% if panne.statut_reparation == 'resolu' %}
+          <span class="badge badge-success" style="font-size:14px;padding:6px 16px">✅ RÉSOLU</span>
+        {% elif panne.statut_reparation == 'en_travail' %}
+          <span class="badge badge-primary" style="font-size:14px;padding:6px 16px">🔧 EN TRAVAIL</span>
+        {% elif panne.statut_reparation == 'en_cours' %}
+          <span class="badge badge-warning" style="font-size:14px;padding:6px 16px">⏳ EN COURS</span>
+        {% else %}
+          <span class="badge badge-danger" style="font-size:14px;padding:6px 16px">🔴 EN ATTENTE</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline verticale -->
+  <div class="card">
+    <div class="card-header"><h3><i class="fas fa-stream"></i> Chronologie</h3></div>
+    <div class="card-body">
+
+      <div style="position:relative;padding-left:30px">
+        <!-- Ligne verticale -->
+        <div style="position:absolute;left:10px;top:0;bottom:0;width:2px;background:#e2e8f0"></div>
+
+        <!-- Étape 1 : Panne détectée -->
+        <div style="position:relative;margin-bottom:28px">
+          <div style="position:absolute;left:-24px;top:2px;width:14px;height:14px;border-radius:50%;background:#dc2626;border:2px solid #fff;box-shadow:0 0 0 2px #dc2626"></div>
+          <div style="background:var(--danger-dim);border-radius:10px;padding:14px 16px;border-left:4px solid #dc2626">
+            <div style="font-size:11px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.06em">🔴 Panne Signalée</div>
+            <div style="font-size:17px;font-weight:800;color:var(--text);margin:6px 0 2px">{{ panne.date_panne[:16] }}</div>
+            <div style="font-size:13px;color:var(--muted)">Signalée par <strong>{{ panne.signale_nom }}</strong></div>
+          </div>
+        </div>
+
+        <!-- Étape 2 : Accusé réception -->
+        <div style="position:relative;margin-bottom:28px">
+          <div style="position:absolute;left:-24px;top:2px;width:14px;height:14px;border-radius:50%;background:{% if panne.date_accusation %}#d97706{% else %}#cbd5e1{% endif %};border:2px solid #fff;box-shadow:0 0 0 2px {% if panne.date_accusation %}#d97706{% else %}#cbd5e1{% endif %}"></div>
+          <div style="background:{% if panne.date_accusation %}#fef3c7{% else %}#f8fafc{% endif %};border-radius:10px;padding:14px 16px;border-left:4px solid {% if panne.date_accusation %}#d97706{% else %}#e2e8f0{% endif %}">
+            <div style="font-size:11px;font-weight:700;color:{% if panne.date_accusation %}#d97706{% else %}#94a3b8{% endif %};text-transform:uppercase;letter-spacing:.06em">✉ Accusé de Réception</div>
+            {% if panne.date_accusation %}
+            <div style="font-size:17px;font-weight:800;color:var(--text);margin:6px 0 2px">{{ panne.date_accusation[:16] }}</div>
+            <div style="font-size:13px;color:var(--muted)">Confirmé par <strong>{{ panne.accuse_nom }}</strong></div>
+            {% else %}
+            <div style="font-size:13px;color:#94a3b8;font-style:italic;margin-top:6px">En attente du technicien…</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Étape 3 : Message technicien -->
+        {% if panne.message_tech %}
+        <div style="position:relative;margin-bottom:28px">
+          <div style="position:absolute;left:-24px;top:2px;width:14px;height:14px;border-radius:50%;background:#0891b2;border:2px solid #fff;box-shadow:0 0 0 2px #0891b2"></div>
+          <div style="background:#f0f9ff;border-radius:10px;padding:14px 16px;border-left:4px solid #0891b2">
+            <div style="font-size:11px;font-weight:700;color:#0891b2;text-transform:uppercase;letter-spacing:.06em">🔧 Message du Technicien</div>
+            <div style="font-size:14px;color:var(--text);margin-top:8px;line-height:1.6">{{ panne.message_tech }}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:6px">
+              Statut indiqué :
+              {% if panne.statut_reparation == 'en_travail' %}<strong>Équipement en réparation</strong>
+              {% elif panne.statut_reparation == 'en_cours' %}<strong>En cours d'inspection</strong>
+              {% elif panne.statut_reparation == 'resolu' %}<strong>Panne réglée</strong>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Étape 4 : Résolution -->
+        <div style="position:relative">
+          <div style="position:absolute;left:-24px;top:2px;width:14px;height:14px;border-radius:50%;background:{% if panne.date_resolution %}#16a34a{% else %}#cbd5e1{% endif %};border:2px solid #fff;box-shadow:0 0 0 2px {% if panne.date_resolution %}#16a34a{% else %}#cbd5e1{% endif %}"></div>
+          <div style="background:{% if panne.date_resolution %}#f0fdf4{% else %}#f8fafc{% endif %};border-radius:10px;padding:14px 16px;border-left:4px solid {% if panne.date_resolution %}#16a34a{% else %}#e2e8f0{% endif %}">
+            <div style="font-size:11px;font-weight:700;color:{% if panne.date_resolution %}#16a34a{% else %}#94a3b8{% endif %};text-transform:uppercase;letter-spacing:.06em">✅ Résolution</div>
+            {% if panne.date_resolution %}
+            <div style="font-size:17px;font-weight:800;color:var(--text);margin:6px 0 2px">{{ panne.date_resolution[:16] }}</div>
+            <div style="font-size:13px;color:var(--muted)">Résolu par <strong>{{ panne.resolu_nom }}</strong></div>
+            {% if mttr is not none %}
+            <div style="margin-top:10px;background:#dcfce7;border-radius:6px;padding:8px 12px;display:inline-block">
+              <span style="font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.06em">MTTR calculé</span>
+              <div style="font-size:20px;font-weight:900;color:#15803d;font-family:monospace">{{ '%.1f'|format(mttr) }} h</div>
+              <div style="font-size:11px;color:#166534">Temps moyen de réparation mis à jour</div>
+            </div>
+            {% endif %}
+            {% else %}
+            <div style="font-size:13px;color:#94a3b8;font-style:italic;margin-top:6px">Non résolu pour l'instant…</div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;margin-top:4px">
+    <a href="{{ url_for('panne.suivi') }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Retour suivi</a>
+  </div>
+</div>
+{% endblock %}

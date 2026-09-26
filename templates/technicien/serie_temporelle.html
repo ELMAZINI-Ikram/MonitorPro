@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}Série Temporelle – MonitorPro{% endblock %}
+{% block page_title %}Importer une Série Temporelle{% endblock %}
+
+{% block content %}
+
+<!-- Sélecteur indicateur commun -->
+<div class="card" style="margin-bottom:24px">
+  <div class="card-header">
+    <h3><i class="fas fa-chart-line" style="color:var(--primary)"></i> Indicateur cible</h3>
+  </div>
+  <div class="card-body">
+    <div class="form-group" style="max-width:500px;margin-bottom:0">
+      <label class="form-label">Sélectionner l'indicateur *</label>
+      <select id="global-ind" class="form-control" onchange="syncIndicateur(this.value)">
+        <option value="">-- Sélectionner --</option>
+        {% for ind in inds %}
+        <option value="{{ ind.id_ind }}">{{ ind.eq_nom }} → {{ ind.nom }} ({{ ind.unite }})</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2">
+
+  <!-- ── MÉTHODE 1 : Upload CSV ─────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fas fa-file-csv" style="color:var(--success)"></i> Importer un fichier CSV</h3>
+    </div>
+    <div class="card-body">
+
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px;margin-bottom:18px;font-size:13px">
+        <strong><i class="fas fa-info-circle"></i> Format CSV attendu :</strong><br><br>
+        <code style="display:block;background:#e2e8f0;padding:10px;border-radius:6px;line-height:1.8">
+          horodatage,valeur<br>
+          2025-01-01 08:00:00,65.3<br>
+          2025-01-01 09:00:00,67.1<br>
+          2025-01-01 10:00:00,102.5
+        </code>
+        <br>
+        <span style="color:var(--muted)">
+          ✅ Formats date acceptés : <code>YYYY-MM-DD HH:MM:SS</code>, <code>DD/MM/YYYY HH:MM</code><br>
+          ✅ Séparateurs : virgule ou point-virgule<br>
+          ✅ Encodage : UTF-8 ou Excel (UTF-8 BOM)
+        </span>
+      </div>
+
+      <form method="POST" action="{{ url_for('serie.import_csv') }}" enctype="multipart/form-data">
+        <input type="hidden" name="id_ind" id="csv-ind">
+        <div class="form-group">
+          <label class="form-label">Fichier CSV *</label>
+          <input type="file" name="fichier_csv" class="form-control" accept=".csv,.txt" required
+                 style="padding:7px 12px;cursor:pointer">
+        </div>
+        <div style="background:var(--warning-dim);border-radius:8px;padding:11px 14px;margin-bottom:18px;font-size:13px;color:var(--warning)">
+          <i class="fas fa-robot"></i>
+          Après import : vérification des règles d'alerte + analyse Z-Score automatique.
+        </div>
+        <button type="submit" class="btn btn-success" onclick="return checkInd()">
+          <i class="fas fa-upload"></i> Importer et Analyser
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── MÉTHODE 2 : Saisie multiple ───────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fas fa-keyboard" style="color:var(--primary)"></i> Saisie Manuelle Multiple</h3>
+    </div>
+    <div class="card-body">
+
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px;margin-bottom:18px;font-size:13px">
+        <strong><i class="fas fa-info-circle"></i> Comment saisir :</strong><br><br>
+        Entrez vos valeurs séparées par des <strong>virgules</strong>, <strong>espaces</strong>,
+        <strong>point-virgules</strong> ou <strong>retours à la ligne</strong>.<br><br>
+        <span style="color:var(--muted)">Exemples :</span><br>
+        <code>65.3, 67.1, 102.5, 70.2, 68.8</code><br>
+        <code>65.3; 67.1; 102.5</code><br>
+        <code>65.3<br>67.1<br>102.5</code>
+      </div>
+
+      <form method="POST" action="{{ url_for('serie.saisie_multiple') }}">
+        <input type="hidden" name="id_ind" id="multi-ind">
+        <div class="form-group">
+          <label class="form-label">Valeurs *</label>
+          <textarea name="valeurs_multiples" class="form-control" rows="7"
+                    placeholder="65.3, 67.1, 70.2, 102.5, 68.8, 71.0, 69.5..." required></textarea>
+        </div>
+        <div style="background:var(--warning-dim);border-radius:8px;padding:11px 14px;margin-bottom:18px;font-size:13px;color:var(--warning)">
+          <i class="fas fa-robot"></i>
+          Après saisie : vérification des règles d'alerte + analyse Z-Score automatique.
+        </div>
+        <button type="submit" class="btn btn-primary" onclick="return checkInd()">
+          <i class="fas fa-save"></i> Enregistrer et Analyser
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<!-- Lien vers résultats si indicateur sélectionné -->
+<div id="voir-resultats" style="display:none;text-align:center;margin-top:8px">
+  <a id="lien-resultats" href="#" class="btn btn-secondary">
+    <i class="fas fa-chart-area"></i> Voir les résultats existants
+  </a>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function syncIndicateur(val) {
+  document.getElementById('csv-ind').value   = val;
+  document.getElementById('multi-ind').value = val;
+  var div  = document.getElementById('voir-resultats');
+  var lien = document.getElementById('lien-resultats');
+  if (val) {
+    lien.href = '/serie/resultats/' + val;
+    div.style.display = 'block';
+  } else {
+    div.style.display = 'none';
+  }
+}
+
+function checkInd() {
+  var val = document.getElementById('global-ind').value;
+  if (!val) {
+    alert('Veuillez d\'abord sélectionner un indicateur.');
+    return false;
+  }
+  return true;
+}
+</script>
+{% endblock %}

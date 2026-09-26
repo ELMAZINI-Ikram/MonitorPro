@@ -1,0 +1,297 @@
+{% extends 'base.html' %}
+{% block title %}KPIs Mensuels – {{ eq.nom }}{% endblock %}
+{% block page_title %}Analyse Mensuelle ISO 14224 — {{ eq.nom }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-month { background:var(--card); border:1px solid var(--border); border-radius:10px;
+             padding:14px 16px; transition:.2s; }
+.kpi-month:hover { border-color:var(--primary); box-shadow:0 4px 12px rgba(0,0,0,.1); }
+.kpi-month .label { font-size:10px; font-weight:700; color:var(--muted);
+                    text-transform:uppercase; letter-spacing:.07em; margin-bottom:4px; }
+.kpi-month .val   { font-size:20px; font-weight:800; line-height:1; }
+.kpi-month .sub   { font-size:11px; color:var(--muted); margin-top:2px; }
+.dispo-bar  { height:6px; border-radius:3px; margin-top:6px; }
+.norme-box  { background:var(--bg-secondary); border-left:3px solid var(--primary);
+              border-radius:0 8px 8px 0; padding:10px 14px; font-size:12px;
+              color:var(--muted); margin-bottom:16px; }
+.norme-box strong { color:var(--text); }
+.table-mois th { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+.table-mois td { font-size:13px; padding:10px 12px !important; }
+.tag-ok    { background:rgba(22,163,74,.12); color:#16a34a; padding:2px 7px; border-radius:4px; font-size:12px; font-weight:600; }
+.tag-warn  { background:rgba(217,119,6,.12); color:#d97706; padding:2px 7px; border-radius:4px; font-size:12px; font-weight:600; }
+.tag-crit  { background:rgba(220,38,38,.12); color:#dc2626; padding:2px 7px; border-radius:4px; font-size:12px; font-weight:600; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ══ En-tête ══════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:20px">
+  <div class="card-body" style="padding:18px 20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:17px;font-weight:700">{{ eq.nom }}</div>
+        <div style="font-size:13px;color:var(--muted)">{{ eq.type }} · {{ eq.localisation or '–' }}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <form method="GET" style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:13px;font-weight:600">Période :</label>
+          <select name="mois" class="form-control" style="width:130px" onchange="this.form.submit()">
+            {% for n in [6, 12, 24] %}
+            <option value="{{ n }}" {% if nb_mois==n %}selected{% endif %}>{{ n }} derniers mois</option>
+            {% endfor %}
+          </select>
+        </form>
+        <a href="{{ url_for('fiabilite.export_pdf', id_eq=eq.id_equipement) }}" class="btn btn-primary btn-sm">
+          <i class="fas fa-file-pdf"></i> Exporter PDF
+        </a>
+        <a href="{{ url_for('fiabilite.detail', id_eq=eq.id_equipement) }}" class="btn btn-secondary btn-sm">
+          <i class="fas fa-arrow-left"></i> Retour
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Note normative ════════════════════════════════════════════════════ -->
+<div class="norme-box">
+  <strong>Référence normative :</strong>
+  Calculs conformes à <strong>ISO 14224:2016</strong> (§9 — Collecte de données de fiabilité)
+  et <strong>IEC 60300-3-4</strong> (Management de la sûreté de fonctionnement).
+  <br>
+  <strong>MTBF</strong> = Temps en service ÷ Nb défaillances ·
+  <strong>MTTR</strong> = Σ Temps réparation ÷ Nb réparations ·
+  <strong>Disponibilité</strong> = MTBF ÷ (MTBF + MTTR) × 100 ·
+  <strong>λ</strong> = 1 ÷ MTBF
+</div>
+
+<!-- ══ KPIs globaux ═══════════════════════════════════════════════════════ -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+  <div class="kpi-month">
+    <div class="label">MTBF global</div>
+    <div class="val" style="color:var(--primary)">
+      {% if kpis_global.mtbf %}{{ kpis_global.mtbf }} <span style="font-size:13px;font-weight:400">h</span>{% else %}–{% endif %}
+    </div>
+    <div class="sub">ISO 14224 §3.12</div>
+  </div>
+  <div class="kpi-month">
+    <div class="label">MTTR global</div>
+    <div class="val" style="color:var(--warning)">
+      {% if kpis_global.mttr %}{{ kpis_global.mttr }} <span style="font-size:13px;font-weight:400">h</span>{% else %}–{% endif %}
+    </div>
+    <div class="sub">ISO 14224 §3.13</div>
+  </div>
+  <div class="kpi-month">
+    <div class="label">Disponibilité</div>
+    <div class="val" style="color:{% if kpis_global.disponibilite and kpis_global.disponibilite>=95 %}var(--success){% elif kpis_global.disponibilite and kpis_global.disponibilite>=80 %}var(--warning){% else %}var(--danger){% endif %}">
+      {% if kpis_global.disponibilite %}{{ kpis_global.disponibilite }}%{% else %}–{% endif %}
+    </div>
+    <div class="sub">IEC 60300-3-4</div>
+  </div>
+  <div class="kpi-month">
+    <div class="label">Total pannes</div>
+    <div class="val">{{ kpis_global.nb_pannes }}</div>
+    <div class="sub">sur toute la période</div>
+  </div>
+  <div class="kpi-month">
+    <div class="label">Temps arrêt total</div>
+    <div class="val" style="color:var(--danger)">{{ kpis_global.temps_total_panne_h }} <span style="font-size:13px;font-weight:400">h</span></div>
+    <div class="sub">cumulé</div>
+  </div>
+</div>
+
+<!-- ══ Graphiques ════════════════════════════════════════════════════════ -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+  <div class="card">
+    <div class="card-header"><h3><i class="fas fa-chart-bar"></i> Disponibilité mensuelle (%)</h3></div>
+    <div class="card-body"><canvas id="chartDispo" height="180"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3><i class="fas fa-chart-line"></i> MTBF et MTTR (heures)</h3></div>
+    <div class="card-body"><canvas id="chartMTBF" height="180"></canvas></div>
+  </div>
+</div>
+
+<!-- ══ Tableau mensuel détaillé ══════════════════════════════════════════ -->
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-table"></i> Détail mensuel — {{ nb_mois }} derniers mois</h3>
+  </div>
+  <div class="table-wrap">
+    <table class="table-mois">
+      <thead>
+        <tr>
+          <th>Mois</th>
+          <th>Pannes</th>
+          <th>Arrêt (h)</th>
+          <th>Service (h)</th>
+          <th>MTBF (h)</th>
+          <th>MTTR (h)</th>
+          <th>MTTF (h)</th>
+          <th>Disponibilité</th>
+          <th>λ (1/h)</th>
+          <th>μ (1/h)</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for m in data_mois %}
+      <tr>
+        <td style="font-weight:600;white-space:nowrap">{{ m.label }}</td>
+        <td style="text-align:center">
+          {% if m.nb_pannes == 0 %}<span class="tag-ok">0</span>
+          {% elif m.nb_pannes <= 2 %}<span class="tag-warn">{{ m.nb_pannes }}</span>
+          {% else %}<span class="tag-crit">{{ m.nb_pannes }}</span>{% endif %}
+        </td>
+        <td style="text-align:center;color:{% if m.temps_arret_h > 24 %}var(--danger){% elif m.temps_arret_h > 8 %}var(--warning){% else %}var(--success){% endif %}">
+          {{ m.temps_arret_h }}
+        </td>
+        <td style="text-align:center;color:var(--muted)">{{ m.temps_service_h }}</td>
+        <td style="text-align:center;font-weight:600">
+          {% if m.mtbf %}{{ m.mtbf }}{% else %}<span style="color:var(--muted)">–</span>{% endif %}
+        </td>
+        <td style="text-align:center">
+          {% if m.mttr %}{{ m.mttr }}{% else %}<span style="color:var(--muted)">–</span>{% endif %}
+        </td>
+        <td style="text-align:center;color:var(--muted)">
+          {% if m.mttf %}{{ m.mttf }}{% else %}–{% endif %}
+        </td>
+        <td style="text-align:center">
+          {% if m.disponibilite %}
+            {% set d = m.disponibilite %}
+            <span class="{% if d >= 95 %}tag-ok{% elif d >= 80 %}tag-warn{% else %}tag-crit{% endif %}">
+              {{ d }}%
+            </span>
+          {% else %}
+            <span class="tag-ok">100%</span>
+          {% endif %}
+        </td>
+        <td style="text-align:center;font-size:11px;color:var(--muted)">
+          {% if m.lambda %}{{ m.lambda }}{% else %}–{% endif %}
+        </td>
+        <td style="text-align:center;font-size:11px;color:var(--muted)">
+          {% if m.mu %}{{ m.mu }}{% else %}–{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ Légende normative ══════════════════════════════════════════════════ -->
+<div class="card" style="margin-top:16px">
+  <div class="card-body" style="padding:14px 20px">
+    <div style="font-size:12px;color:var(--muted);display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <div><strong style="color:var(--text)">MTBF</strong> — Mean Time Between Failures<br>Temps moyen entre deux pannes (ISO 14224 §3.12)</div>
+      <div><strong style="color:var(--text)">MTTR</strong> — Mean Time To Repair<br>Temps moyen de réparation (ISO 14224 §3.13)</div>
+      <div><strong style="color:var(--text)">MTTF</strong> — Mean Time To Failure<br>= MTBF pour systèmes réparables (ISO 14224 §3.18)</div>
+      <div><strong style="color:var(--text)">λ</strong> — Taux de défaillance = 1/MTBF (h⁻¹)</div>
+      <div><strong style="color:var(--text)">μ</strong> — Taux de réparation = 1/MTTR (h⁻¹)</div>
+      <div><strong style="color:var(--text)">Dispo ≥ 95%</strong> <span class="tag-ok">Bon</span> · <strong>80–95%</strong> <span class="tag-warn">Moyen</span> · <strong>&lt; 80%</strong> <span class="tag-crit">Critique</span></div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const labels = {{ data_mois | map(attribute='label') | list | tojson }};
+const dispos  = {{ data_mois | map(attribute='disponibilite') | list | tojson }};
+const mtbfs   = {{ data_mois | map(attribute='mtbf')          | list | tojson }};
+const mttrs   = {{ data_mois | map(attribute='mttr')          | list | tojson }};
+const pannes  = {{ data_mois | map(attribute='nb_pannes')     | list | tojson }};
+
+// Couleurs disponibilité selon seuil ISO
+const colsDispo = dispos.map(d =>
+  d === null ? '#94a3b8'
+  : d >= 95  ? '#16a34a'
+  : d >= 80  ? '#d97706'
+  : '#dc2626'
+);
+
+// ── Graphique Disponibilité ───────────────────────────────────────────
+new Chart(document.getElementById('chartDispo'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [{
+      label: 'Disponibilité (%)',
+      data: dispos.map(d => d === null ? 100 : d),
+      backgroundColor: colsDispo,
+      borderRadius: 5,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const v = ctx.parsed.y;
+            return `Dispo : ${v === 100 && pannes[ctx.dataIndex] === 0 ? '100% (aucune panne)' : v + '%'}`;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        min: 0, max: 100,
+        ticks: { callback: v => v + '%' },
+        grid: { color: 'rgba(100,116,139,.12)' }
+      },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// ── Graphique MTBF / MTTR ─────────────────────────────────────────────
+new Chart(document.getElementById('chartMTBF'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'MTBF (h)',
+        data: mtbfs,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,.08)',
+        tension: .35, fill: true,
+        pointRadius: 4, pointBackgroundColor: '#3b82f6',
+        spanGaps: true,
+      },
+      {
+        label: 'MTTR (h)',
+        data: mttrs,
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245,158,11,.08)',
+        tension: .35, fill: true,
+        pointRadius: 4, pointBackgroundColor: '#f59e0b',
+        spanGaps: true,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top', labels: { boxWidth: 14, font: { size: 12 } } },
+      tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.dataset.label} : ${ctx.parsed.y !== null ? ctx.parsed.y + ' h' : '–'}`
+        }
+      }
+    },
+    scales: {
+      y: {
+        ticks: { callback: v => v + ' h' },
+        grid: { color: 'rgba(100,116,139,.12)' }
+      },
+      x: { grid: { display: false } }
+    }
+  }
+});
+</script>
+{% endblock %}

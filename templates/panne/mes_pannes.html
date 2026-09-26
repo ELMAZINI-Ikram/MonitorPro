@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}Mes Pannes{% endblock %}
+{% block page_title %}Mes Pannes à Traiter{% endblock %}
+
+{% block content %}
+
+{% if pannes %}
+{% for p in pannes %}
+
+{% if p.statut_reparation == 'resolu' %}
+  {% set couleur = '#16a34a' %} {% set bg = '#f0fdf4' %}
+{% elif p.statut_reparation == 'en_travail' %}
+  {% set couleur = '#0891b2' %} {% set bg = '#f0f9ff' %}
+{% elif p.statut_reparation == 'en_cours' %}
+  {% set couleur = '#d97706' %} {% set bg = '#fffbeb' %}
+{% else %}
+  {% set couleur = '#dc2626' %} {% set bg = '#fff5f5' %}
+{% endif %}
+
+<div style="background:{{ bg }};border:1.5px solid {{ couleur }};border-radius:12px;margin-bottom:20px;overflow:hidden">
+
+  <!-- Header -->
+  <div style="background:{{ couleur }};padding:12px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <div style="color:#fff;font-size:15px;font-weight:700">
+      <i class="fas fa-cog"></i> {{ p.eq_nom }}
+      <span style="font-weight:400;font-size:13px;opacity:.85">— {{ p.eq_type }}{% if p.localisation %} | {{ p.localisation }}{% endif %}</span>
+    </div>
+    {% if p.statut_reparation == 'resolu' %}
+      <span style="background:rgba(255,255,255,.25);color:#fff;padding:3px 14px;border-radius:20px;font-size:12px;font-weight:700">✅ RÉSOLU</span>
+    {% elif p.statut_reparation == 'en_travail' %}
+      <span style="background:rgba(255,255,255,.25);color:#fff;padding:3px 14px;border-radius:20px;font-size:12px;font-weight:700">🔧 EN TRAVAIL</span>
+    {% elif p.statut_reparation == 'en_cours' %}
+      <span style="background:rgba(255,255,255,.25);color:#fff;padding:3px 14px;border-radius:20px;font-size:12px;font-weight:700">⏳ EN COURS</span>
+    {% else %}
+      <span style="background:rgba(255,255,255,.25);color:#fff;padding:3px 14px;border-radius:20px;font-size:12px;font-weight:700">🔴 EN ATTENTE</span>
+    {% endif %}
+  </div>
+
+  <div style="padding:18px 20px">
+
+    <!-- Timeline résumée -->
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+
+      <div style="background:var(--card);border-radius:8px;padding:12px 16px;border-left:4px solid #dc2626;min-width:200px">
+        <div style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.05em">🔴 Panne signalée le</div>
+        <div style="font-size:15px;font-weight:800;color:var(--text);margin-top:4px">{{ p.date_panne[:16] }}</div>
+        <div style="font-size:12px;color:var(--muted)">par {{ p.signale_nom }}</div>
+      </div>
+
+      <div style="background:var(--card);border-radius:8px;padding:12px 16px;border-left:4px solid {% if p.date_accusation %}#d97706{% else %}#e2e8f0{% endif %};min-width:200px">
+        <div style="font-size:10px;font-weight:700;color:{% if p.date_accusation %}#d97706{% else %}#94a3b8{% endif %};text-transform:uppercase;letter-spacing:.05em">✉ Accusé réception</div>
+        {% if p.date_accusation %}
+        <div style="font-size:15px;font-weight:800;color:var(--text);margin-top:4px">{{ p.date_accusation[:16] }}</div>
+        <div style="font-size:12px;color:var(--muted)">par {{ p.accuse_nom }}</div>
+        {% else %}
+        <div style="font-size:13px;color:#94a3b8;font-style:italic;margin-top:4px">Non confirmé</div>
+        {% endif %}
+      </div>
+
+      {% if p.date_resolution %}
+      <div style="background:var(--card);border-radius:8px;padding:12px 16px;border-left:4px solid #16a34a;min-width:200px">
+        <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.05em">✅ Résolu le</div>
+        <div style="font-size:15px;font-weight:800;color:var(--text);margin-top:4px">{{ p.date_resolution[:16] }}</div>
+        <div style="font-size:12px;color:var(--muted)">par {{ p.resolu_nom }}</div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Message précédent du tech -->
+    {% if p.message_tech %}
+    <div style="background:var(--card);border-radius:8px;padding:12px 16px;margin-bottom:16px;border-left:4px solid #0891b2;font-size:13px">
+      <strong style="color:#0891b2"><i class="fas fa-comment-alt"></i> Votre dernier message :</strong><br>
+      <span style="color:var(--text)">{{ p.message_tech }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    {% if p.statut_reparation != 'resolu' %}
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+
+      <!-- Étape 3 : Démarrer la réparation (après accusation responsable) -->
+      {% if p.date_accusation and p.statut_reparation != 'en_reparation' %}
+      <button class="btn btn-primary" onclick="openModal('msg-{{ p.id }}')" >
+        <i class="fas fa-wrench"></i> Démarrer / Mettre à jour la réparation
+      </button>
+      {% elif not p.date_accusation %}
+      <div style="font-size:13px;color:var(--muted);font-style:italic">
+        <i class="fas fa-hourglass-half"></i> En attente de prise en charge par le responsable…
+      </div>
+      {% endif %}
+
+    </div>
+    {% else %}
+    <div style="font-size:13px;color:var(--success);font-weight:600">
+      <i class="fas fa-check-circle"></i> Panne clôturée — aucune action requise.
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<!-- Modal message -->
+<div class="modal-overlay" id="msg-{{ p.id }}">
+  <div class="modal">
+    <h3><i class="fas fa-comment-alt" style="color:var(--primary)"></i> Message au Responsable</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+      Équipement : <strong>{{ p.eq_nom }}</strong>
+    </p>
+    <form method="POST" action="{{ url_for('panne.reparer', panne_id=p.id) }}">
+      <div class="form-group">
+        <label class="form-label">Description de l'intervention *</label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message détaillé</label>
+        <textarea name="message_tech" class="form-control" rows="4"
+                  placeholder="Ex: J'ai remplacé le capteur thermique, l'équipement est de nouveau opérationnel..."></textarea>
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('msg-{{ p.id }}')" class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Envoyer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endfor %}
+
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <i class="fas fa-tools" style="color:var(--success)"></i>
+    Aucune panne assignée pour le moment.
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

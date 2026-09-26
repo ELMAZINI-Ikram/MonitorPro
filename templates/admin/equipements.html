@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+{% block title %}Équipements – Admin{% endblock %}
+{% block page_title %}Gérer les Équipements{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-body" style="padding:14px 20px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+    <div style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:13px;font-weight:600">Statut :</label>
+      <select id="filtreStatut" class="form-control" style="width:170px">
+        <option value="">Tous</option>
+        <option value="actif">✅ Actif</option>
+        <option value="en panne">🔴 En Panne</option>
+        <option value="en maintenance">🟡 En Maintenance</option>
+        <option value="inactif">⚫ Inactif</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:13px;font-weight:600">Équipement :</label>
+      <select id="filtreNom" class="form-control" style="width:200px" onchange="syncNomFilter()">
+        <option value="">Tous</option>
+        {% for eq in equips %}
+        <option value="{{ eq.id_equipement }}">{{ eq.nom }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <input type="text" id="rechercheEq" class="form-control" style="width:180px" placeholder="Recherche libre…">
+    </div>
+    <span id="compteurEq" style="font-size:13px;color:var(--muted)"></span>
+    <a href="{{ url_for('admin.localisations') }}" class="btn btn-secondary btn-sm" style="margin-left:auto">
+      <i class="fas fa-map-marker-alt"></i> Localisations
+    </a>
+    <button class="btn btn-primary" onclick="openModal('addEq')">
+      <i class="fas fa-plus"></i> Ajouter
+    </button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table id="tableEq">
+      <thead>
+        <tr><th>#</th><th>Nom</th><th>Type</th><th>Localisation</th><th>Statut</th><th>Installation</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+      {% for eq in equips %}
+      <tr data-id="{{ eq.id_equipement }}"
+          data-statut="{{ eq.statut }}"
+          data-search="{{ eq.nom|lower }} {{ eq.type|lower }} {{ (eq.localisation or '')|lower }}">
+        <td style="color:var(--muted)">#{{ eq.id_equipement }}</td>
+        <td><strong>{{ eq.nom }}</strong></td>
+        <td>{{ eq.type }}</td>
+        <td>{{ eq.localisation or '–' }}</td>
+        <td>
+          {% if eq.statut=='actif' %}<span class="badge badge-success">✅ Actif</span>
+          {% elif eq.statut=='en panne' %}<span class="badge badge-danger">🔴 En Panne</span>
+          {% elif eq.statut=='en maintenance' %}<span class="badge badge-warning">🟡 En Maintenance</span>
+          {% else %}<span class="badge badge-secondary">⚫ {{ eq.statut|title }}</span>{% endif %}
+        </td>
+        <td style="font-size:12px;color:var(--muted)">{{ eq.date_installation or '–' }}</td>
+        <td style="display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm"
+            onclick="openEdit({{ eq.id_equipement }},'{{ eq.nom|e }}','{{ eq.type|e }}','{{ (eq.localisation or '')|e }}','{{ eq.statut }}','{{ eq.date_installation or '' }}')">
+            <i class="fas fa-edit"></i>
+          </button>
+          <form method="POST" action="{{ url_for('admin.delete_equipement', eid=eq.id_equipement) }}" style="display:inline"
+                onsubmit="return confirm('Supprimer cet équipement ?')">
+            <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Ajouter -->
+<div class="modal-overlay" id="addEq">
+  <div class="modal">
+    <h3><i class="fas fa-plus-circle" style="color:var(--primary)"></i> Nouvel Équipement</h3>
+    <form method="POST" action="{{ url_for('admin.add_equipement') }}">
+      <div class="form-group"><label class="form-label">Nom *</label><input type="text" name="nom" class="form-control" required></div>
+      <div class="form-group"><label class="form-label">Type *</label><input type="text" name="type" class="form-control" required></div>
+      <div class="form-group">
+        <label class="form-label">Localisation</label>
+        <select name="localisation_select" id="locSelectAdd" class="form-control" onchange="toggleLocAutre('add')">
+          <option value="">— Sélectionner —</option>
+          {% for loc in locs %}<option value="{{ loc.nom }}">{{ loc.nom }}</option>{% endfor %}
+          <option value="__autre__">✏ Autre (saisie libre)</option>
+        </select>
+        <input type="text" name="localisation_autre" id="locAutreAdd" class="form-control"
+               style="margin-top:6px;display:none" placeholder="Saisir la localisation…">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Statut</label>
+          <select name="statut" id="statutAdd" class="form-control" onchange="toggleStatutAutre('add')">
+            <option value="actif">✅ Actif</option>
+            <option value="en panne">🔴 En Panne</option>
+            <option value="en maintenance">🟡 En Maintenance</option>
+            <option value="inactif">⚫ Inactif</option>
+            <option value="__autre__">✏ Autre</option>
+          </select>
+          <input type="text" name="statut_autre" id="statutAutreAdd" class="form-control"
+                 style="margin-top:6px;display:none" placeholder="Statut personnalisé…">
+        </div>
+        <div class="form-group"><label class="form-label">Date installation</label><input type="date" name="date_installation" class="form-control"></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('addEq')" class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Modifier -->
+<div class="modal-overlay" id="editEq">
+  <div class="modal">
+    <h3><i class="fas fa-edit" style="color:var(--primary)"></i> Modifier Équipement</h3>
+    <form method="POST" id="editForm">
+      <div class="form-group"><label class="form-label">Nom *</label><input type="text" name="nom" id="e-nom" class="form-control" required></div>
+      <div class="form-group"><label class="form-label">Type *</label><input type="text" name="type" id="e-type" class="form-control" required></div>
+      <div class="form-group">
+        <label class="form-label">Localisation</label>
+        <select name="localisation_select" id="e-locSelect" class="form-control" onchange="toggleLocAutre('edit')">
+          <option value="">— Sélectionner —</option>
+          {% for loc in locs %}<option value="{{ loc.nom }}">{{ loc.nom }}</option>{% endfor %}
+          <option value="__autre__">✏ Autre (saisie libre)</option>
+        </select>
+        <input type="text" name="localisation_autre" id="e-locAutre" class="form-control"
+               style="margin-top:6px;display:none" placeholder="Saisir la localisation…">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Statut</label>
+          <select name="statut" id="e-statut" class="form-control" onchange="toggleStatutAutre('edit')">
+            <option value="actif">✅ Actif</option>
+            <option value="en panne">🔴 En Panne</option>
+            <option value="en maintenance">🟡 En Maintenance</option>
+            <option value="inactif">⚫ Inactif</option>
+            <option value="__autre__">✏ Autre</option>
+          </select>
+          <input type="text" name="statut_autre" id="e-statutAutre" class="form-control"
+                 style="margin-top:6px;display:none" placeholder="Statut personnalisé…">
+        </div>
+        <div class="form-group"><label class="form-label">Date installation</label><input type="date" name="date_installation" id="e-date" class="form-control"></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('editEq')" class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const STATUTS_FIXES = ['actif','en panne','en maintenance','inactif'];
+const LOCS_FIXES = {{ locs | map(attribute='nom') | list | tojson }};
+
+function filtrerEquipements() {
+  const statut = document.getElementById('filtreStatut').value;
+  const idEq   = document.getElementById('filtreNom').value;
+  const search = document.getElementById('rechercheEq').value.toLowerCase();
+  const rows   = document.querySelectorAll('#tableEq tbody tr');
+  let visible  = 0;
+  rows.forEach(r => {
+    const okS = !statut || r.dataset.statut === statut;
+    const okI = !idEq   || r.dataset.id === idEq;
+    const okR = !search || r.dataset.search.includes(search);
+    r.style.display = (okS && okI && okR) ? '' : 'none';
+    if (okS && okI && okR) visible++;
+  });
+  document.getElementById('compteurEq').textContent = visible + ' équipement' + (visible!==1?'s':'');
+}
+function syncNomFilter() {
+  // Quand on choisit un équipement précis, on efface le filtre statut/recherche
+  document.getElementById('filtreStatut').value = '';
+  document.getElementById('rechercheEq').value  = '';
+  filtrerEquipements();
+}
+['filtreStatut','rechercheEq'].forEach(id => document.getElementById(id).addEventListener('change', filtrerEquipements));
+document.getElementById('rechercheEq').addEventListener('input', filtrerEquipements);
+filtrerEquipements();
+
+function toggleLocAutre(mode) {
+  const s = mode==='add' ? 'locSelectAdd' : 'e-locSelect';
+  const i = mode==='add' ? 'locAutreAdd'  : 'e-locAutre';
+  const show = document.getElementById(s).value === '__autre__';
+  document.getElementById(i).style.display = show ? 'block' : 'none';
+  if (!show) document.getElementById(i).value = '';
+}
+function toggleStatutAutre(mode) {
+  const s = mode==='add' ? 'statutAdd'      : 'e-statut';
+  const i = mode==='add' ? 'statutAutreAdd' : 'e-statutAutre';
+  const show = document.getElementById(s).value === '__autre__';
+  document.getElementById(i).style.display = show ? 'block' : 'none';
+  if (!show) document.getElementById(i).value = '';
+}
+function openEdit(id, nom, type, loc, statut, date) {
+  document.getElementById('e-nom').value  = nom;
+  document.getElementById('e-type').value = type;
+  document.getElementById('e-date').value = date;
+  const locSel = document.getElementById('e-locSelect');
+  const locInp = document.getElementById('e-locAutre');
+  if (LOCS_FIXES.includes(loc)) { locSel.value=loc; locInp.style.display='none'; locInp.value=''; }
+  else { locSel.value='__autre__'; locInp.style.display='block'; locInp.value=loc; }
+  const stSel = document.getElementById('e-statut');
+  const stInp = document.getElementById('e-statutAutre');
+  if (STATUTS_FIXES.includes(statut)) { stSel.value=statut; stInp.style.display='none'; stInp.value=''; }
+  else { stSel.value='__autre__'; stInp.style.display='block'; stInp.value=statut; }
+  document.getElementById('editForm').action = '/admin/equipements/edit/' + id;
+  openModal('editEq');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Analyse Temporelle{% endblock %}
+{% block page_title %}Analyse Temporelle & Détection d'Anomalies{% endblock %}
+
+{% block content %}
+
+<!-- ══ KPIs globaux (TÂCHE 6 : Dashboard Bootstrap) ═══════════════════════ -->
+<div class="stats-grid" style="margin-bottom:20px">
+  <div class="stat-card sc-blue">
+    <div class="stat-icon si-blue"><i class="fas fa-wave-square"></i></div>
+    <div>
+      <div class="stat-label">Indicateurs Analysables</div>
+      <div class="stat-value" style="color:var(--primary)">{{ total_inds }}</div>
+    </div>
+  </div>
+  <div class="stat-card sc-cyan">
+    <div class="stat-icon si-cyan"><i class="fas fa-database"></i></div>
+    <div>
+      <div class="stat-label">Total Mesures</div>
+      <div class="stat-value" style="color:var(--cyan)">{{ total_mesures }}</div>
+    </div>
+  </div>
+  <div class="stat-card sc-red">
+    <div class="stat-icon si-red"><i class="fas fa-exclamation-triangle"></i></div>
+    <div>
+      <div class="stat-label">Analyses Effectuées</div>
+      <div class="stat-value" style="color:var(--danger)">{{ total_anomalies }}</div>
+    </div>
+  </div>
+  <div class="stat-card sc-green">
+    <div class="stat-icon si-green"><i class="fas fa-clock"></i></div>
+    <div>
+      <div class="stat-label">Dernière Analyse</div>
+      <div class="stat-value" style="color:var(--success);font-size:14px">{{ derniere_analyse }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Info méthodes disponibles ══════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:18px">
+  <div class="card-header">
+    <h3><i class="fas fa-info-circle" style="color:var(--cyan)"></i> Méthodes de Détection Disponibles</h3>
+    <a href="{{ url_for('analyse.validation_systeme') }}" class="btn btn-outline-cyan btn-sm">
+      <i class="fas fa-check-double"></i> Validation Système
+    </a>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 20px">
+    <div style="padding:12px 16px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid var(--primary)">
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--cyan);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">
+        <i class="fas fa-calculator"></i> Z-Score Robuste
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6">
+        Détection basée sur la <strong>médiane + MAD</strong> (résistant aux outliers).<br>
+        Seuil dynamique ±2σ mobile. Idéal pour séries ≥ 5 mesures.
+      </div>
+    </div>
+    <div style="padding:12px 16px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid var(--success)">
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--success);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">
+        <i class="fas fa-tree"></i> Isolation Forest
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6">
+        Méthode ML, <strong>isolation des points rares</strong>.<br>
+        Contamination 5 %. Nécessite ≥ 10 mesures. scikit-learn.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Tableau des indicateurs (TÂCHE 6) ══════════════════════════════════ -->
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-list-alt"></i> Indicateurs Disponibles</h3>
+  </div>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:var(--bg-secondary);font-family:var(--font-mono);font-size:11px;text-transform:uppercase;color:var(--muted)">
+        <th style="padding:10px 16px;text-align:left">Indicateur</th>
+        <th style="padding:10px 16px;text-align:left">Équipement</th>
+        <th style="padding:10px 16px;text-align:center">Mesures</th>
+        <th style="padding:10px 16px;text-align:center">Statut</th>
+        <th style="padding:10px 16px;text-align:center">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ind in inds %}
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:12px 16px">
+          <div style="font-weight:600;color:var(--text-primary)">{{ ind.nom }}</div>
+          <div style="font-size:11px;color:var(--muted)">{{ ind.unite }}</div>
+        </td>
+        <td style="padding:12px 16px;color:var(--text-secondary);font-size:13px">
+          <i class="fas fa-microchip" style="color:var(--cyan);margin-right:6px"></i>{{ ind.eq_nom }}
+        </td>
+        <td style="padding:12px 16px;text-align:center">
+          <span style="font-family:var(--font-mono);font-size:13px;
+            color:{% if ind.nb_mesures >= 10 %}var(--success){% elif ind.nb_mesures >= 5 %}var(--warning){% else %}var(--danger){% endif %}">
+            {{ ind.nb_mesures }}
+          </span>
+        </td>
+        <td style="padding:12px 16px;text-align:center">
+          {% if ind.nb_mesures >= 10 %}
+            <span style="background:rgba(0,220,130,.12);color:var(--success);padding:3px 10px;border-radius:20px;font-size:11px;font-family:var(--font-mono)">✅ Prêt</span>
+          {% elif ind.nb_mesures >= 5 %}
+            <span style="background:rgba(255,180,0,.12);color:var(--warning);padding:3px 10px;border-radius:20px;font-size:11px;font-family:var(--font-mono)">⚠ Partiel</span>
+          {% else %}
+            <span style="background:rgba(255,70,70,.12);color:var(--danger);padding:3px 10px;border-radius:20px;font-size:11px;font-family:var(--font-mono)">❌ Insuffisant</span>
+          {% endif %}
+        </td>
+        <td style="padding:12px 16px;text-align:center">
+          {% if ind.nb_mesures >= 5 %}
+          <a href="{{ url_for('analyse.detail', id_ind=ind.id_ind) }}" class="btn btn-primary btn-sm">
+            <i class="fas fa-chart-line"></i> Analyser
+          </a>
+          {% else %}
+          <span style="color:var(--muted);font-size:12px">Min. 5 mesures</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" style="padding:30px;text-align:center;color:var(--muted)">
+          <i class="fas fa-database" style="font-size:24px;display:block;margin-bottom:8px"></i>
+          Aucun indicateur disponible
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

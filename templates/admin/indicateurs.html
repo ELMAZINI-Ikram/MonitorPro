@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% block title %}Indicateurs – Admin{% endblock %}
+{% block page_title %}Gérer les Indicateurs{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3><i class="fas fa-chart-line"></i> Indicateurs ({{ inds|length }})</h3>
+    <button class="btn btn-primary" onclick="openModal('addInd')">
+      <i class="fas fa-plus"></i> Ajouter
+    </button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Nom</th><th>Équipement</th><th>Unité</th><th>Mesures</th><th>Description</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+      {% for ind in inds %}
+      <tr>
+        <td style="color:var(--muted)">#{{ ind.id_ind }}</td>
+        <td><strong>{{ ind.nom }}</strong></td>
+        <td><span class="badge badge-primary">{{ ind.eq_nom }}</span></td>
+        <td><span class="badge badge-secondary">{{ ind.unite }}</span></td>
+        <td style="color:var(--muted);font-size:13px">{{ ind.nb_mesures }}</td>
+        <td style="font-size:13px;color:var(--muted)">{{ ind.description or '–' }}</td>
+        <td style="display:flex;gap:6px">
+          <!-- Modifier -->
+          <button class="btn btn-secondary btn-sm" title="Modifier"
+            onclick="openEditInd(
+              {{ ind.id_ind }},
+              '{{ ind.nom|replace("'","\\'") }}',
+              '{{ ind.unite }}',
+              {{ ind.id_equipement }},
+              '{{ (ind.description or '')|replace("'","\\'") }}'
+            )">
+            <i class="fas fa-edit"></i>
+          </button>
+          <!-- Voir -->
+          <a href="{{ url_for('technicien.view_indicateur', id_ind=ind.id_ind) }}"
+             class="btn btn-secondary btn-sm" title="Voir les mesures">
+            <i class="fas fa-eye"></i>
+          </a>
+          <!-- Supprimer -->
+          <form method="POST" action="{{ url_for('admin.delete_indicateur', iid=ind.id_ind) }}"
+                style="display:inline"
+                onsubmit="return confirm('Supprimer {{ ind.nom }} et toutes ses mesures ?')">
+            <button type="submit" class="btn btn-danger btn-sm" title="Supprimer">
+              <i class="fas fa-trash"></i>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL AJOUTER -->
+<div class="modal-overlay" id="addInd">
+  <div class="modal">
+    <h3><i class="fas fa-plus-circle" style="color:var(--primary)"></i> Nouvel Indicateur</h3>
+    <form method="POST" action="{{ url_for('admin.add_indicateur') }}">
+      <div class="form-group">
+        <label class="form-label">Équipement *</label>
+        <select name="id_equipement" class="form-control" required>
+          <option value="">-- Sélectionner --</option>
+          {% for eq in equips %}<option value="{{ eq.id_equipement }}">{{ eq.nom }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nom *</label>
+        <input type="text" name="nom" class="form-control" required placeholder="Ex : Température Moteur" minlength="2" maxlength="100">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unité *</label>
+        <select name="unite" class="form-control" required>
+          <option value="">-- Sélectionner --</option>
+          <option value="degC">degC — Température</option>
+          <option value="mm/s">mm/s — Vibration</option>
+          <option value="bar">bar — Pression</option>
+          <option value="%">% — Humidité / Taux</option>
+          <option value="A">A — Courant électrique</option>
+          <option value="V">V — Tension</option>
+          <option value="W">W — Puissance</option>
+          <option value="RPM">RPM — Vitesse rotation</option>
+          <option value="Hz">Hz — Fréquence</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea name="description" class="form-control" rows="2" maxlength="500" placeholder="Description optionnelle"></textarea>
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('addInd')" class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL MODIFIER -->
+<div class="modal-overlay" id="editInd">
+  <div class="modal">
+    <h3><i class="fas fa-edit" style="color:var(--primary)"></i> Modifier Indicateur</h3>
+    <form method="POST" id="editIndForm">
+      <div class="form-group">
+        <label class="form-label">Équipement *</label>
+        <select name="id_equipement" id="ei-eq" class="form-control" required>
+          {% for eq in equips %}<option value="{{ eq.id_equipement }}">{{ eq.nom }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nom *</label>
+        <input type="text" name="nom" id="ei-nom" class="form-control" required minlength="2" maxlength="100">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unité *</label>
+        <select name="unite" id="ei-unite" class="form-control" required>
+          <option value="degC">degC — Température</option>
+          <option value="mm/s">mm/s — Vibration</option>
+          <option value="bar">bar — Pression</option>
+          <option value="%">% — Humidité / Taux</option>
+          <option value="A">A — Courant électrique</option>
+          <option value="V">V — Tension</option>
+          <option value="W">W — Puissance</option>
+          <option value="RPM">RPM — Vitesse rotation</option>
+          <option value="Hz">Hz — Fréquence</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea name="description" id="ei-desc" class="form-control" rows="2" maxlength="500"></textarea>
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('editInd')" class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openEditInd(id, nom, unite, idEq, desc) {
+  document.getElementById('ei-nom').value   = nom;
+  document.getElementById('ei-unite').value = unite;
+  document.getElementById('ei-eq').value    = idEq;
+  document.getElementById('ei-desc').value  = desc;
+  document.getElementById('editIndForm').action = '/admin/indicateurs/edit/' + id;
+  openModal('editInd');
+}
+</script>
+{% endblock %}

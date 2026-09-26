@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Signaler une Panne{% endblock %}
+{% block page_title %}Signaler une Panne d'Équipement{% endblock %}
+
+{% block content %}
+<div style="max-width:580px">
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fas fa-exclamation-circle" style="color:var(--danger)"></i> Nouvelle Panne</h3>
+    </div>
+    <div class="card-body">
+
+      <div style="background:var(--danger-dim);border:1px solid #fca5a5;border-radius:8px;padding:14px;margin-bottom:20px;font-size:13px;color:var(--danger)">
+        <i class="fas fa-info-circle"></i>
+        En signalant cette panne, l'équipement passera automatiquement au statut
+        <strong>« En Panne »</strong> et les techniciens assignés seront notifiés.
+      </div>
+
+      <form method="POST">
+        <div class="form-group">
+          <label class="form-label">Équipement concerné *</label>
+          <select name="id_equipement" class="form-control" required>
+            <option value="">-- Sélectionner --</option>
+            {% for eq in equips %}
+            <option value="{{ eq.id_equipement }}">
+              {{ eq.nom }} — {{ eq.type }}
+              {% if eq.localisation %}({{ eq.localisation }}){% endif %}
+              — <strong>{{ eq.statut }}</strong>
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Date et heure de la panne *</label>
+          <input type="datetime-local" name="date_panne" class="form-control"
+                 value="{{ default_dt }}" required>
+          <small style="color:var(--muted);font-size:12px">
+            Par défaut : maintenant. Modifiez si la panne a eu lieu avant.
+          </small>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <button type="submit" class="btn btn-danger">
+            <i class="fas fa-bell"></i> Signaler la Panne
+          </button>
+          <a href="{{ url_for('panne.suivi') }}" class="btn btn-secondary">Annuler</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

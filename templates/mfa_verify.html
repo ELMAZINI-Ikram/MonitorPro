@@ -1,0 +1,415 @@
+{% extends 'base_public.html' %}
+{% block title %}Vérification MFA – MonitorPro{% endblock %}
+
+{% block content %}
+<style>
+  * { box-sizing: border-box; }
+
+  .mfa-bg {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0f0c29 0%, #1a1a2e 40%, #16213e 70%, #0f3460 100%);
+    padding: 20px;
+  }
+
+  .mfa-wrap {
+    width: 100%;
+    max-width: 430px;
+    animation: fadeUp .4s cubic-bezier(.4,0,.2,1);
+  }
+
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(20px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  /* Logo */
+  .mfa-logo {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .mfa-logo .icon {
+    font-size: 40px;
+    margin-bottom: 8px;
+  }
+  .mfa-logo .title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -.02em;
+  }
+  .mfa-logo .sub {
+    font-size: 13px;
+    color: rgba(255,255,255,.45);
+    margin-top: 4px;
+  }
+
+  /* Alertes flash */
+  .flash-msg {
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 14px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .flash-danger  { background:rgba(231,76,60,.18);  border:1px solid rgba(231,76,60,.4);  color:#e74c3c; }
+  .flash-info    { background:rgba(52,152,219,.18);  border:1px solid rgba(52,152,219,.4);  color:#74b9ff; }
+  .flash-success { background:rgba(39,174,96,.18);   border:1px solid rgba(39,174,96,.4);   color:#55efc4; }
+  .flash-warning { background:rgba(243,156,18,.18);  border:1px solid rgba(243,156,18,.4);  color:#fdcb6e; }
+
+  /* Carte principale */
+  .mfa-card {
+    background: rgba(255,255,255,.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 18px;
+    padding: 36px 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .mfa-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 5%, #3b5bdb 40%, #74b9ff 65%, transparent 95%);
+  }
+
+  /* Destinataire */
+  .dest-block {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .dest-label {
+    font-size: 13px;
+    color: rgba(255,255,255,.6);
+    margin-bottom: 8px;
+  }
+  .dest-email {
+    display: inline-block;
+    background: rgba(59,91,219,.2);
+    border: 1px solid rgba(59,91,219,.4);
+    border-radius: 8px;
+    padding: 8px 18px;
+    color: #74b9ff;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .03em;
+  }
+
+  /* Champ OTP */
+  .otp-label {
+    display: block;
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+  .otp-input {
+    text-align: center;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 14px;
+    font-family: 'Courier New', Courier, monospace;
+    padding: 16px 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.08);
+    border: 2px solid rgba(255,255,255,.2);
+    color: #fff;
+    width: 100%;
+    transition: border-color .2s, box-shadow .2s;
+    outline: none;
+    caret-color: #74b9ff;
+  }
+  .otp-input:focus {
+    border-color: #3b5bdb;
+    box-shadow: 0 0 0 4px rgba(59,91,219,.25);
+  }
+  .otp-input::placeholder {
+    color: rgba(255,255,255,.2);
+    letter-spacing: 10px;
+  }
+  .otp-input.error {
+    border-color: #e74c3c;
+    box-shadow: 0 0 0 4px rgba(231,76,60,.2);
+    animation: shake .3s;
+  }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    25%{transform:translateX(-6px)}
+    75%{transform:translateX(6px)}
+  }
+
+  /* Bouton vérifier */
+  .btn-verify {
+    width: 100%;
+    background: linear-gradient(135deg, #3b5bdb, #1971c2);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 18px;
+    box-shadow: 0 4px 18px rgba(59,91,219,.4);
+    transition: all .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-verify:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 28px rgba(59,91,219,.5);
+  }
+  .btn-verify:disabled {
+    opacity: .65;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Loader spinner inline */
+  .spinner {
+    display: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    margin: 0 auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Infos */
+  .mfa-hints {
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255,255,255,.35);
+    margin-top: 16px;
+    margin-bottom: 18px;
+    line-height: 1.7;
+  }
+  .mfa-hints span {
+    display: inline-block;
+    background: rgba(255,255,255,.06);
+    border-radius: 4px;
+    padding: 2px 7px;
+    margin: 1px 2px;
+  }
+
+  /* Bouton renvoyer */
+  .btn-resend {
+    background: none;
+    border: 1px solid rgba(255,255,255,.2);
+    color: rgba(255,255,255,.6);
+    padding: 9px 22px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .2s;
+    width: 100%;
+  }
+  .btn-resend:hover:not(:disabled) {
+    border-color: rgba(255,255,255,.5);
+    color: rgba(255,255,255,.9);
+    background: rgba(255,255,255,.05);
+  }
+  .btn-resend:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+  }
+
+  /* Countdown renvoyer */
+  .resend-countdown {
+    font-size: 12px;
+    color: rgba(255,255,255,.35);
+    text-align: center;
+    margin-top: 10px;
+  }
+
+  /* Retour */
+  .back-link {
+    text-align: center;
+    margin-top: 22px;
+  }
+  .back-link a {
+    color: rgba(255,255,255,.35);
+    font-size: 13px;
+    text-decoration: none;
+    transition: color .2s;
+  }
+  .back-link a:hover { color: rgba(255,255,255,.7); }
+</style>
+
+<div class="mfa-bg">
+  <div class="mfa-wrap">
+
+    <!-- Logo -->
+    <div class="mfa-logo">
+      <div class="icon">🔐</div>
+      <div class="title">MonitorPro</div>
+      <div class="sub">Vérification en deux étapes</div>
+    </div>
+
+    <!-- Messages flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="flash-msg flash-{{ cat }}">
+          <span>
+            {% if cat == 'danger' %}⚠{% elif cat == 'info' %}ℹ{% elif cat == 'success' %}✓{% else %}⚠{% endif %}
+          </span>
+          <span>{{ msg }}</span>
+        </div>
+      {% endfor %}
+    {% endwith %}
+
+    <!-- Carte principale -->
+    <div class="mfa-card">
+
+      <!-- Email destinataire -->
+      <div class="dest-block">
+        <div class="dest-label">Code envoyé à</div>
+        <div class="dest-email">✉ {{ email_affiche }}</div>
+      </div>
+
+      <!-- Formulaire OTP -->
+      <form method="POST" action="{{ url_for('auth.mfa_verify') }}"
+            id="mfa-form" autocomplete="off" novalidate>
+
+        <label class="otp-label" for="mfa-code">
+          Code de vérification (6 chiffres)
+        </label>
+
+        <input
+          type="text"
+          name="code"
+          id="mfa-code"
+          class="otp-input"
+          maxlength="6"
+          minlength="6"
+          pattern="\d{6}"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="• • • • • •"
+          autofocus
+          required
+        >
+
+        <button type="submit" class="btn-verify" id="btn-verify">
+          <span id="btn-text">✓ Vérifier le code</span>
+          <div class="spinner" id="spinner"></div>
+        </button>
+      </form>
+
+      <!-- Infos sécurité -->
+      <div class="mfa-hints">
+        <span>⏱ Expire dans {{ expiration_min }} min</span>
+        <span>🔒 {{ max_tentatives }} tentatives max</span>
+        <span>Usage unique</span>
+      </div>
+
+      <!-- Renvoyer le code -->
+      <form method="POST" action="{{ url_for('auth.mfa_renvoyer') }}"
+            id="resend-form">
+        <button type="submit" class="btn-resend" id="btn-resend">
+          🔄 Renvoyer un nouveau code
+        </button>
+      </form>
+      <div class="resend-countdown" id="resend-countdown"></div>
+
+    </div>
+
+    <!-- Retour login -->
+    <div class="back-link">
+      <a href="{{ url_for('auth.login') }}">← Retour à la connexion</a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const input     = document.getElementById('mfa-code');
+  const form      = document.getElementById('mfa-form');
+  const btnVerify = document.getElementById('btn-verify');
+  const btnText   = document.getElementById('btn-text');
+  const spinner   = document.getElementById('spinner');
+  const btnResend = document.getElementById('btn-resend');
+  const cdEl      = document.getElementById('resend-countdown');
+
+  // ── Filtrer uniquement les chiffres + auto-submit à 6 chiffres ────────────
+  input.addEventListener('input', function () {
+    this.value = this.value.replace(/\D/g, '').slice(0, 6);
+    this.classList.remove('error');
+    // Auto-submit quand 6 chiffres sont saisis
+    if (this.value.length === 6) {
+      setTimeout(() => form.requestSubmit(), 80);
+    }
+  });
+
+  // ── Afficher le loader au submit ──────────────────────────────────────────
+  form.addEventListener('submit', function (e) {
+    const code = input.value.trim();
+    if (!/^\d{6}$/.test(code)) {
+      e.preventDefault();
+      input.classList.add('error');
+      input.focus();
+      return;
+    }
+    btnText.style.display   = 'none';
+    spinner.style.display   = 'block';
+    btnVerify.disabled      = true;
+    btnResend.disabled      = true;
+  });
+
+  // ── Cooldown 30 s sur « Renvoyer » pour éviter le spam ───────────────────
+  const COOLDOWN_S    = 30;
+  const LS_KEY        = 'mfa_resend_ts';
+  let   countdownTimer = null;
+
+  function startCountdown(fromTs) {
+    if (countdownTimer) clearInterval(countdownTimer);
+
+    function tick() {
+      const elapsed = Math.floor((Date.now() - fromTs) / 1000);
+      const left    = COOLDOWN_S - elapsed;
+      if (left <= 0) {
+        clearInterval(countdownTimer);
+        btnResend.disabled   = false;
+        cdEl.textContent     = '';
+        return;
+      }
+      btnResend.disabled   = true;
+      cdEl.textContent     = `⏳ Nouveau code disponible dans ${left}s`;
+    }
+    tick();
+    countdownTimer = setInterval(tick, 1000);
+  }
+
+  // Vérifier un éventuel cooldown persisté (rafraîchissement de page)
+  const savedTs = parseInt(localStorage.getItem(LS_KEY) || '0', 10);
+  if (savedTs && (Date.now() - savedTs) < COOLDOWN_S * 1000) {
+    startCountdown(savedTs);
+  }
+
+  document.getElementById('resend-form').addEventListener('submit', function () {
+    const now = Date.now();
+    localStorage.setItem(LS_KEY, String(now));
+    startCountdown(now);
+    btnResend.disabled = true;
+  });
+
+  // ── Mise au point initiale ────────────────────────────────────────────────
+  input.focus();
+})();
+</script>
+{% endblock %}

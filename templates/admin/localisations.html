@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Localisations – Admin{% endblock %}
+{% block page_title %}Gérer les Localisations{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <h3><i class="fas fa-map-marker-alt"></i> Localisations ({{ locs|length }})</h3>
+    <button class="btn btn-primary" onclick="openModal('addLoc')">
+      <i class="fas fa-plus"></i> Ajouter
+    </button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Ordre</th><th>Nom</th><th>Description</th><th>Statut</th><th>Créée le</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+      {% for loc in locs %}
+      <tr style="{% if not loc.actif %}opacity:.5{% endif %}">
+        <td style="color:var(--muted);font-size:13px">{{ loc.ordre }}</td>
+        <td><strong>{{ loc.nom }}</strong></td>
+        <td style="font-size:13px;color:var(--muted)">{{ loc.description or '–' }}</td>
+        <td>
+          {% if loc.actif %}
+            <span class="badge badge-success">● Actif</span>
+          {% else %}
+            <span class="badge badge-secondary">● Désactivé</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px;color:var(--muted)">{{ loc.date_creation[:10] if loc.date_creation else '–' }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('admin.toggle_localisation', lid=loc.id) }}" style="display:inline">
+            <button type="submit" class="btn btn-sm {% if loc.actif %}btn-warning{% else %}btn-success{% endif %}">
+              {% if loc.actif %}<i class="fas fa-eye-slash"></i> Désactiver
+              {% else %}<i class="fas fa-eye"></i> Activer{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding:14px 20px">
+    <a href="{{ url_for('admin.equipements') }}" class="btn btn-secondary">
+      <i class="fas fa-arrow-left"></i> Retour aux équipements
+    </a>
+  </div>
+</div>
+
+<!-- Modal Ajouter -->
+<div class="modal-overlay" id="addLoc">
+  <div class="modal">
+    <h3><i class="fas fa-map-marker-alt" style="color:var(--primary)"></i> Nouvelle Localisation</h3>
+    <form method="POST" action="{{ url_for('admin.add_localisation') }}">
+      <div class="form-group">
+        <label class="form-label">Nom *</label>
+        <input type="text" name="nom" class="form-control" required placeholder="Ex : Zone A – Hall 1">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input type="text" name="description" class="form-control" placeholder="Description courte (optionnel)">
+      </div>
+      <div class="modal-foot">
+        <button type="button" onclick="closeModal('addLoc')" class="btn btn-secondary">Annuler</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
