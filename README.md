@@ -198,5 +198,6 @@ Intérêts : Industrial Data · Industrial AI · Maintenance prédictive · Indu
 
 🔎 **À la recherche d'un stage de fin d'études (PFE) pour 2027**, à l'international.
 
-- GitHub : [@ELMAZINI-Ikram](https://github.com/ELMAZINI-Ikram)
+- GitHub : - [@ELMAZINI-Ikram](https://github.com/ELMAZINI-Ikram)
+           - [@LOUBNA-ECH-CHOKHMANY](https://github.com/LOUBNA-ECH-CHOKHMANY)
 - E-mail : ikramelmazini02@gmail.com
